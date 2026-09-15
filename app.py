@@ -17,6 +17,9 @@ def inicializar_banco():
     conn = sqlite3.connect('biobanco_laboratorio.db')
     cursor = conn.cursor()
     
+    # FORÇA A ATUALIZAÇÃO DA TABELA ANTIGA PARA EVITAR CONFLITOS DE COLUNAS
+    cursor.execute("DROP TABLE IF EXISTS monitoramento")
+    
     # Tabela de Amostras Atualizada e Mais Robusta
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS monitoramento (
@@ -70,7 +73,7 @@ def verificar_login(usuario, senha):
     cursor.execute("SELECT nome_completo FROM usuarios WHERE usuario = ? AND senha_hash = ?", (usuario.strip(), hash_senha))
     resultado = cursor.fetchone()
     conn.close()
-    return resultado[0] if resultado else None
+    return resultado if resultado else None
 
 # Inicializa as tabelas do sistema
 conn, cursor = inicializar_banco()
@@ -94,8 +97,8 @@ if not st.session_state["logado"]:
             nome_autenticado = verificar_login(campo_usuario, campo_senha)
             if nome_autenticado:
                 st.session_state["logado"] = True
-                st.session_state["nome_usuario"] = nome_autenticado
-                st.success(f"Bem-vindo, {nome_autenticado}!")
+                st.session_state["nome_usuario"] = nome_autenticado[0]
+                st.success(f"Bem-vindo, {nome_autenticado[0]}!")
                 st.rerun()
             else:
                 st.error("Usuário ou senha incorretos.")
@@ -164,8 +167,6 @@ elif opcao == "📥 Upload de Planilha CSV":
 # --- ABA 3: CADASTRO MANUAL ---
 elif opcao == "➕ Novo Cadastro Manual":
     st.header("Registrar Amostra de Forma Individual")
-    
-    # Informa visualmente quem é o responsável pela inserção
     st.info(f"✍️ Esta amostra será registrada automaticamente no nome do analista: **{st.session_state['nome_usuario']}**")
     
     with st.form("form_cadastro_manual"):
@@ -230,5 +231,4 @@ elif opcao == "⚙️ Gerenciar Usuários":
             else:
                 try:
                     hash_nova = gerar_hash(nova_senha)
-                    cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", 
-    
+        
