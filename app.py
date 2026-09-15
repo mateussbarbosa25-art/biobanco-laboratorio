@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilizacao CSS - Interface Premium Azul Clássico que voce gostou
+# Estilizacao CSS - Interface Premium Azul Clássico
 st.markdown("""
     <style>
     .main { background-color: #f4f6f9; }
@@ -67,9 +67,33 @@ def db_start():
         pigmento TEXT,
         coloracao_gram TEXT,
         catalase TEXT,
-        oxidase TEXT
+        oxidase TEXT,
+        resultado_final TEXT
     )
     ''')
+    
+    # Executa atualizacoes seguras de colunas caso o banco seja antigo
+    colunas_novas = {
+        "contagem_ufc": "INTEGER DEFAULT 0",
+        "nivel_risco": "TEXT DEFAULT 'N/A'",
+        "tipo_contaminante": "TEXT DEFAULT 'N/A'",
+        "identificacao_micro": "TEXT DEFAULT 'N/A'",
+        "status_acao": "TEXT DEFAULT 'N/A'",
+        "forma": "TEXT DEFAULT 'N/A'",
+        "margem": "TEXT DEFAULT 'N/A'",
+        "pigmento": "TEXT DEFAULT 'N/A'",
+        "coloracao_gram": "TEXT DEFAULT 'N/A'",
+        "catalase": "TEXT DEFAULT 'N/A'",
+        "oxidase": "TEXT DEFAULT 'N/A'",
+        "resultado_final": "TEXT DEFAULT 'N/A'"
+    }
+    
+    for col, tipo in colunas_novas.items():
+        try:
+            cursor.execute(f"ALTER TABLE monitoramento ADD COLUMN {col} {tipo}")
+        except sqlite3.OperationalError:
+            pass # A coluna ja existe no banco de dados
+
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +103,7 @@ def db_start():
     )
     ''')
     cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone() == 0:
+    if cursor.fetchone()[0] == 0:
         hash_adm = crypto_pass("lab123")
         cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", 
                        ("admin", hash_adm, "Administrador Geral"))
@@ -93,7 +117,7 @@ if "logado" not in st.session_state:
 if "nome_usuario" not in st.session_state:
     st.session_state["nome_usuario"] = ""
 
-# --- TELA DE LOGIN PREMIUM AZUL ---
+# --- TELA DE LOGIN ---
 if not st.session_state["logado"]:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
@@ -114,7 +138,7 @@ if not st.session_state["logado"]:
         
         if res_user:
             st.session_state["logado"] = True
-            st.session_state["nome_usuario"] = res_user
+            st.session_state["nome_usuario"] = res_user[0]
             st.rerun()
         else:
             st.error("Usuario ou senha incorretos.")
@@ -123,7 +147,7 @@ if not st.session_state["logado"]:
     st.stop()
 
 # =========================================================================
-#  SISTEMA AUTENTICADO (VISUAL AZUL ORIGINAL)
+#  SISTEMA AUTENTICADO
 # =========================================================================
 
 st.sidebar.markdown("""
@@ -151,9 +175,14 @@ if opcao == "📊 Dashboard & Consultas":
     df_todos = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
     total_amostras = len(df_todos)
     
-    # Cálculos dinâmicos para contaminações
-    criticos = len(df_todos[df_todos['nivel_risco'] == 'Nivel de Acao (Critico)']) if total_amostras > 0 else 0
-    em_analise = len(df_todos[df_todos['status_acao'] == 'Em Investigacao']) if total_amostras > 0 else 0
+    # Tratamento seguro para colunas calculadas no Dashboard
+    criticos = 0
+    em_analise = 0
+    if total_amostras > 0:
+        if 'nivel_risco' in df_todos.columns:
+            criticos = len(df_todos[df_todos['nivel_risco'] == 'Nivel de Acao (Critico)'])
+        if 'status_acao' in df_todos.columns:
+            em_analise = len(df_todos[df_todos['status_acao'] == 'Em Investigacao'])
     
     # Retorno dos 3 Cards Originais no Topo
     m1, m2, m3 = st.columns(3)
@@ -174,7 +203,7 @@ if opcao == "📊 Dashboard & Consultas":
     
     st.markdown("<hr>", unsafe_allow_html=True)
     st.subheader("🔍 Localizador de Amostras")
-    busca = st.text_input("", placeholder="Digite o codigo da amostra contaminada (Ex: B4-001)...", key="search_box").strip()
+    busca = st.text_input("Buscar por codigo:", placeholder="Digite o codigo da amostra contaminada (Ex: B4-001)...", key="search_box").strip()
     
     if busca:
         df_busca = pd.read_sql_query("SELECT * FROM monitoramento WHERE codigo LIKE ?", conn, params=[f"%{busca}%"])
@@ -220,21 +249,4 @@ elif opcao == "📥 Importar Planilha (CSV)":
                 risco = "Nivel de Alerta" if ufc < 5 else "Nivel de Acao (Critico)"
                 
                 if codigo_amostra and codigo_amostra != 'nan' and codigo_amostra.startswith('B4-'):
-                    try:
-                        cursor.execute('''
-                        INSERT INTO monitoramento (codigo, area, ponto_coleta, metodo, data_coleta, contagem_ufc, nivel_risco, status_acao, analista)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (codigo_amostra, area, ponto_coleta, metodo, data_coleta, ufc, risco, "Em Investigacao", st.session_state["nome_usuario"]))
-                        linhas_inseridas += 1
-                    except:
-                        pass
-            conn.commit()
-            st.success(f"Sucesso: {linhas_inseridas} registros novos importados.")
-        except Exception as e:
-            st.error(f"Erro no processamento: {e}")
-
-# --- ABA 3: REGISTRAR CONTAMINACAO MANUAL ---
-elif opcao == "➕ Registrar Contaminacao":
-    st.markdown("<h2 style='color: #1a73e8;'>➕ Lançamento de Amostra Contaminada</h2>", unsafe_allow_html=True)
-    st.info(f"✍ *Log de Auditoria: Amostra vinculada ao analista:* **{st.session_state['nome_usuario']}**")
-
+                    
