@@ -4,21 +4,21 @@ import sqlite3
 import io
 import hashlib
 
-# --- CONFIGURACAO BIOBANCO DE CONTAMINACAO ---
+# --- CONFIGURACAO GERAL DA PAGINA ---
 st.set_page_config(
-    page_title="LIMS Biobank - Contamination Control", 
-    page_icon="⚠️", 
+    page_title="LIMS Biobank Pro", 
+    page_icon="🔬", 
     layout="wide"
 )
 
-# Estilizacao CSS - Identidade Visual de Biossegurança e Controle de Riscos
+# Estilizacao CSS - Interface Premium Azul Clássico que voce gostou
 st.markdown("""
     <style>
-    .main { background-color: #f8fafc; }
-    div[data-testid="stSidebar"] { background-color: #1e293b !important; }
+    .main { background-color: #f4f6f9; }
+    div[data-testid="stSidebar"] { background-color: #0e1e2f !important; }
     div[data-testid="stSidebar"] .stMarkdown, div[data-testid="stSidebar"] label { color: #ffffff !important; }
     .stButton>button {
-        background-color: #dc2626;
+        background-color: #1a73e8;
         color: white;
         border-radius: 6px;
         padding: 8px 20px;
@@ -26,18 +26,18 @@ st.markdown("""
         font-weight: 600;
         width: 100%;
     }
-    .stButton>button:hover { background-color: #991b1b; color: white; }
-    .card-danger {
+    .stButton>button:hover { background-color: #1557b0; color: white; }
+    .card {
         background-color: white;
         padding: 20px;
         border-radius: 10px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         margin-bottom: 15px;
-        border-top: 4px solid #dc2626;
+        border-top: 4px solid #1a73e8;
         text-align: center;
     }
-    .card-title { color: #64748b; font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
-    .card-value { color: #0f172a; font-size: 26px; font-weight: bold; }
+    .card-title { color: #5f6368; font-size: 14px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
+    .card-value { color: #202124; font-size: 26px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -93,19 +93,19 @@ if "logado" not in st.session_state:
 if "nome_usuario" not in st.session_state:
     st.session_state["nome_usuario"] = ""
 
-# --- TELA DE LOGIN ---
+# --- TELA DE LOGIN PREMIUM AZUL ---
 if not st.session_state["logado"]:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
         <div style='text-align: center; margin-bottom: 20px;'>
-            <h1 style='color: #dc2626; font-weight: 800;'>⚠️ BIOBANK CONTAMINATION LOG</h1>
-            <p style='color: #475569; font-size: 14px;'>Repositorio Restrito de Amostras e Isolas Contaminados</p>
+            <h1 style='color: #1a73e8; font-weight: 800;'>🔬 LIMS BIOBANK</h1>
+            <p style='color: #5f6368; font-size: 14px;'>Controle de Monitoramento Microbiologico</p>
         </div>
     """, unsafe_allow_html=True)
     
     campo_usuario = st.text_input("Usuario:", placeholder="Ex: admin", key="log_user").strip()
     campo_senha = st.text_input("Senha:", type="password", placeholder="••••••••", key="log_pass")
-    botao_entrar = st.button("Autenticar no Servidor")
+    botao_entrar = st.button("Entrar no Sistema")
     
     if botao_entrar:
         hash_digitado = crypto_pass(campo_senha)
@@ -117,71 +117,72 @@ if not st.session_state["logado"]:
             st.session_state["nome_usuario"] = res_user
             st.rerun()
         else:
-            st.error("Acesso negado: Credenciais invalidas.")
+            st.error("Usuario ou senha incorretos.")
             
-    st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 12px;'>Controle de Acesso: admin / lab123</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #9aa0a6; font-size: 12px;'>Padrao: admin / lab123</p>", unsafe_allow_html=True)
     st.stop()
 
 # =========================================================================
-#  SISTEMA AUTENTICADO
+#  SISTEMA AUTENTICADO (VISUAL AZUL ORIGINAL)
 # =========================================================================
 
 st.sidebar.markdown("""
-    <div style='text-align: center; padding: 10px 0; border-bottom: 1px solid #334155;'>
-        <h3 style='color: #ffffff; margin: 0; font-weight: 700;'>☣️ LIMS Biobank</h3>
-        <span style='color: #ef4444; font-size: 12px; font-weight: bold;'>● Monitoramento de Riscos</span>
+    <div style='text-align: center; padding: 10px 0; border-bottom: 1px solid #2c3e50;'>
+        <h3 style='color: #ffffff; margin: 0; font-weight: 700;'>🧪 Biobank Pro</h3>
+        <span style='color: #2cc770; font-size: 12px;'>● Servidor Online</span>
     </div>
     <br>
 """, unsafe_allow_html=True)
 
-st.sidebar.markdown(f"👤 **Analista Fiscal:**\n`{st.session_state['nome_usuario']}`")
+st.sidebar.markdown(f"👤 **Analista:**\n`{st.session_state['nome_usuario']}`")
 
 opcao = st.sidebar.radio("Navegacao:", [
-    "📊 Painel de Ocorrencias", 
-    "📥 Carga Batch de Planilha", 
+    "📊 Dashboard & Consultas", 
+    "📥 Importar Planilha (CSV)", 
     "➕ Registrar Contaminacao",
-    "👥 Operadores Cadastrados",
-    "🚪 Fechar Sessao"
+    "👥 Gerenciar Analistas",
+    "🚪 Sair"
 ])
 
-# --- ABA 1: PAINEL DE OCORRENCIAS ---
-if opcao == "📊 Painel de Ocorrencias":
-    st.markdown("<h2 style='color: #dc2626; font-weight: 700;'>📊 Painel de Monitoramento de Contaminações</h2>", unsafe_allow_html=True)
+# --- ABA 1: DASHBOARD & CONSULTAS ---
+if opcao == "📊 Dashboard & Consultas":
+    st.markdown("<h2 style='color: #1a73e8; font-weight: 700;'>📊 Painel de Controle Integrado</h2>", unsafe_allow_html=True)
     
     df_todos = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
     total_amostras = len(df_todos)
     
-    # Calculo de Ocorrências Críticas (Nível de Ação Ultrapassado)
+    # Cálculos dinâmicos para contaminações
     criticos = len(df_todos[df_todos['nivel_risco'] == 'Nivel de Acao (Critico)']) if total_amostras > 0 else 0
     em_analise = len(df_todos[df_todos['status_acao'] == 'Em Investigacao']) if total_amostras > 0 else 0
     
-    # Cards de Indicadores Visuais de Risco
+    # Retorno dos 3 Cards Originais no Topo
     m1, m2, m3 = st.columns(3)
     with m1:
-        st.markdown(f"<div class='card-danger'><div class='card-title'>Total de Isolas Retidos</div><div class='card-value'>🧫 {total_amostras}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card'><div class='card-title'>Total de Amostras Retidas</div><div class='card-value'>🧬 {total_amostras}</div></div>", unsafe_allow_html=True)
     with m2:
-        st.markdown(f"<div class='card-danger'><div class='card-title'>Desvios Criticos</div><div class='card-value' style='color:#dc2626;'>🚨 {criticos}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card'><div class='card-title'>Desvios Criticos</div><div class='card-value' style='color:#dc2626;'>🚨 {criticos}</div></div>", unsafe_allow_html=True)
     with m3:
-        st.markdown(f"<div class='card-danger'><div class='card-title'>Em Investigacao</div><div class='card-value' style='color:#f59e0b;'>⏳ {em_analise}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card'><div class='card-title'>Em Investigacao</div><div class='card-value' style='color:#f59e0b;'>⏳ {em_analise}</div></div>", unsafe_allow_html=True)
     
-    # Grafico de Distribuição de Contaminantes por Setor
+    # Gráfico de frequência por setor
     if total_amostras > 0 and 'area' in df_todos.columns:
-        df_valid = df_todos[df_todos['area'].notna() & (df_todos['area'] != '')]
-        if not df_valid.empty:
-            st.subheader("📈 Frequencia de Contaminacao por Setor / Area")
-            st.bar_chart(df_valid['area'].value_counts(), color="#dc2626")
+        df_valid_areas = df_todos[df_todos['area'].notna() & (df_todos['area'] != '')]
+        if not df_valid_areas.empty:
+            st.subheader("📈 Frequencia de Contaminacao por Area / Setor")
+            contagem_areas = df_valid_areas['area'].value_counts()
+            st.bar_chart(contagem_areas, color="#1a73e8")
     
     st.markdown("<hr>", unsafe_allow_html=True)
-    st.subheader("🔍 Localizador Rapido de Carga Microbiana")
+    st.subheader("🔍 Localizador de Amostras")
     busca = st.text_input("", placeholder="Digite o codigo da amostra contaminada (Ex: B4-001)...", key="search_box").strip()
     
     if busca:
         df_busca = pd.read_sql_query("SELECT * FROM monitoramento WHERE codigo LIKE ?", conn, params=[f"%{busca}%"])
         if not df_busca.empty:
-            st.success("Registro localizado na base de segurança!")
+            st.success("Registro localizado!")
             st.dataframe(df_busca, use_container_width=True, hide_index=True)
         else:
-            st.warning("Nenhum desvio encontrado para este codigo.")
+            st.warning("Nenhum dado encontrado para este codigo.")
             
     st.subheader("📋 Repositorio Central de Amostras Contaminadas")
     if total_amostras > 0:
@@ -190,19 +191,19 @@ if opcao == "📊 Painel de Ocorrencias":
         csv_buffer = io.StringIO()
         df_todos.to_csv(csv_buffer, index=False)
         st.download_button(
-            label="📥 Exportar Relatorio Geral de Desvios (CSV)",
+            label="📥 Baixar Planilha Completa (Excel/CSV)",
             data=csv_buffer.getvalue(),
-            file_name="relatorio_contaminacoes_biobanco.csv",
+            file_name="relatorio_global_biobanco.csv",
             mime="text/csv"
         )
     else:
-        st.info("Nenhum desvio ou contaminacao registrado no banco de dados.")
+        st.info("O banco de dados ainda nao possui registros cadastrados.")
 
 # --- ABA 2: IMPORTAR CSV ---
-elif opcao == "📥 Carga Batch de Planilha":
-    st.markdown("<h2 style='color: #dc2626;'>📥 Importacao em Lote de Ocorrencias</h2>", unsafe_allow_html=True)
+elif opcao == "📥 Importar Planilha (CSV)":
+    st.markdown("<h2 style='color: #1a73e8;'>📥 Upload de Planilha (.CSV)</h2>", unsafe_allow_html=True)
     
-    arquivo_upload = st.file_uploader("Escolha a planilha consolidada (.CSV):", type=["csv"])
+    arquivo_upload = st.file_uploader("Escolha o arquivo CSV:", type=["csv"])
     if arquivo_upload:
         try:
             conteudo = arquivo_upload.read().decode("utf-8")
@@ -216,8 +217,6 @@ elif opcao == "📥 Carga Batch de Planilha":
                 metodo = str(linha.get('METHOD', ''))
                 data_coleta = str(linha.get('DATA', ''))
                 ufc = int(linha.get('RESULTADO FINAL', 0)) if str(linha.get('RESULTADO FINAL', '')).isdigit() else 0
-                
-                # Regra automatica de Risco baseada na presenca de UFC
                 risco = "Nivel de Alerta" if ufc < 5 else "Nivel de Acao (Critico)"
                 
                 if codigo_amostra and codigo_amostra != 'nan' and codigo_amostra.startswith('B4-'):
@@ -230,7 +229,12 @@ elif opcao == "📥 Carga Batch de Planilha":
                     except:
                         pass
             conn.commit()
-            st.success(f"Processamento concluido: {linhas_inseridas} amostras de desvios importadas.")
+            st.success(f"Sucesso: {linhas_inseridas} registros novos importados.")
         except Exception as e:
-            st.error(f"Erro na leitura dos dados: {e}")
+            st.error(f"Erro no processamento: {e}")
+
+# --- ABA 3: REGISTRAR CONTAMINACAO MANUAL ---
+elif opcao == "➕ Registrar Contaminacao":
+    st.markdown("<h2 style='color: #1a73e8;'>➕ Lançamento de Amostra Contaminada</h2>", unsafe_allow_html=True)
+    st.info(f"✍ *Log de Auditoria: Amostra vinculada ao analista:* **{st.session_state['nome_usuario']}**")
 
