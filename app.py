@@ -1,121 +1,124 @@
+import streamlit as st
+import pandas as pd
 import sqlite3
-import csv
 import io
 
-# 1. Conexão com o banco de dados
-conn = sqlite3.connect('biobanco_laboratorio.db')
-cursor = conn.cursor()
+# Configuração da página web
+st.set_page_config(page_title="Biobanco Digital - Laboratorio", layout="wide")
+st.title("🔬 Sistema de Gestao do Biobanco")
 
-# 2. Criação da tabela estruturada conforme sua planilha
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS monitoramento (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    codigo TEXT UNIQUE NOT NULL,
-    ponto TEXT,
-    origem TEXT,
-    area TEXT,
-    amostra TEXT,
-    ponto_coleta TEXT,
-    amostragem TEXT,
-    metodo TEXT,
-    frequencia TEXT,
-    analista TEXT,
-    data_coleta TEXT,
-    resultado_final TEXT,
-    forma TEXT,
-    margem TEXT
-)
-''')
-conn.commit()
+# Conectando ou criando o banco de dados local
+def conectar_banco():
+    conn = sqlite3.connect('biobanco_laboratorio.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS monitoramento (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT UNIQUE NOT NULL,
+        ponto TEXT,
+        origem TEXT,
+        area TEXT,
+        amostra TEXT,
+        ponto_coleta TEXT,
+        amostragem TEXT,
+        metodo TEXT,
+        frequencia TEXT,
+        analista TEXT,
+        data_coleta TEXT,
+        resultado_final TEXT
+    )
+    ''')
+    conn.commit()
+    return conn, cursor
 
-# 3. FUNÇÃO 1: Importar os dados da planilha automaticamente
-def importar_planilha_csv(conteudo_csv):
-    """
-    Lê os dados brutos da planilha CSV e insere na tabela de monitoramento.
-    Ignora linhas de cabeçalho e linhas vazias.
-    """
-    f = io.StringIO(conteudo_csv.strip())
-    leitor = csv.reader(f)
+conn, cursor = conectar_banco()
+
+# --- MENU LATERAL ---
+opcao = st.sidebar.radio("Selecione uma Acao:", ["📋 Ver e Buscar Amostras", "📥 Importar Planilha CSV", "➕ Cadastrar Nova Amostra"])
+
+# --- ABA 1: VER E BUSCAR AMOSTRAS ---
+if opcao == "📋 Ver e Buscar Amostras":
+    st.header("Consultar Historico de Monitoramento")
+    busca = st.text_input("Digite o codigo da amostra para buscar (Ex: B4-001):")
     
-    linhas_inseridas = 0
-    lendo_dados_reais = False
-    
-    for linha in leitor:
-        # Detecta onde começam os registros reais (abaixo do segundo cabeçalho)
-        if len(linha) > 0 and linha[1] == 'CODE':
-            lendo_dados_reais = True
-            continue
+    if busca:
+        df_busca = pd.read_sql_query("SELECT * FROM monitoramento WHERE codigo LIKE ?", conn, params=[f"%{busca}%"])
+        if not df_busca.empty:
+            st.success("Amostra encontrada!")
+            st.dataframe(df_busca)
+        else:
+            st.warning("Nenhuma amostra encontrada com este codigo.")
             
-        if lendo_dados_reais and len(linha) >= 13:
-            codigo = linha[1].strip()
-            # Valida se a linha realmente tem um código válido (Ex: B4-001)
-            if codigo and codigo.startswith('B4-'):
-                ponto = linha[2].strip()
-                origem = linha[3].strip()
-                area = linha[4].strip()
-                amostra = linha[5].strip()
-                ponto_coleta = linha[6].strip()
-                amostragem = linha[7].strip()
-                metodo = linha[8].strip()
-                frequencia = linha[9].strip()
-                analista = linha[10].strip()
-                data_coleta = linha[11].strip()
-                resultado = linha[12].strip()
-                
+    st.subheader("Todos os Registros no Banco de Dados")
+    df_todos = pd.read_sql_query("SELECT * FROM monitoramento", conn)
+    if not df_todos.empty:
+        st.dataframe(df_todos)
+    else:
+        st.info("O banco de dados esta vazio. Use as outras abas para adicionar dados.")
+
+# --- ABA 2: IMPORTAR PLANILHA CSV ---
+elif opcao == "📥 Importar Planilha CSV":
+    st.header("Importacao Automatica da Planilha")
+    arquivo_upload = st.file_uploader("Escolha o arquivo CSV da sua planilha:", type=["csv"])
+    
+    if arquivo_upload is not None:
+        try:
+            conteudo = arquivo_upload.read().decode("utf-8")
+            f = io.StringIO(conteudo.strip())
+            linhas_inseridas = 0
+            lendo_dados_reais = False
+            
+            for linha in f:
+                dados_linha = [item.strip() for item in linha.split(',')]
+                if "CODE" in dados_linha:
+                    lendo_dados_reais = True
+                    continue
+                if lendo_dados_reais and len(dados_linha) >= 12:
+                    dados_limpos = [d for d in dados_linha if d != '']
+                    if dados_limpos and dados_limpos.startswith('B4-'):
+                        try:
+                            cursor.execute('''
+                            INSERT INTO monitoramento (codigo, origem, area, amostra, ponto_coleta, amostragem, metodo, frequencia, analista, data_coleta, resultado_final)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ''', (dados_limpos, dados_linha, dados_linha, dados_linha, dados_linha, dados_linha, dados_linha, dados_linha, dados_linha, dados_linha, dados_linha))
+                            linhas_inseridas += 1
+                        except sqlite3.IntegrityError:
+                            continue
+            conn.commit()
+            st.success(f"Sucesso! {linhas_inseridas} novas amostras cadastradas.")
+        except Exception as e:
+            st.error(f"Erro ao processar o arquivo: {e}")
+
+# --- ABA 3: CADASTRAR NOVA AMOSTRA MANUAl ---
+elif opcao == "➕ Cadastrar Nova Amostra":
+    st.header("Formulario de Cadastro Manual")
+    with st.form("form_cadastro"):
+        col1, col2 = st.columns(2)
+        with col1:
+            codigo = st.text_input("Codigo (Ex: B4-040):")
+            origem = st.selectbox("Origem:", ["Environmental Monitoring", "Storage Tanks", "Processes"])
+            area = st.text_input("Area (Ex: Laboratory):")
+            amostra = st.text_input("Sala / Tipo de Amostra:")
+        with col2:
+            ponto_coleta = st.text_input("Ponto de Coleta:")
+            metodo = st.text_input("Metodo Utilizado:")
+            analista = st.text_input("Analista Responsavel:")
+            data_coleta = st.date_input("Data da Coleta:").strftime("%Y%m%d")
+            
+        botao_salvar = st.form_submit_button("Salvar Amostra no Biobanco")
+        if botao_salvar:
+            if not codigo:
+                st.error("O campo 'Codigo' e obrigatorio!")
+            else:
                 try:
                     cursor.execute('''
-                    INSERT INTO monitoramento (
-                        codigo, ponto, origem, area, amostra, ponto_coleta, 
-                        amostragem, metodo, frequencia, analista, data_coleta, resultado_final
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (codigo, ponto, origem, area, amostra, ponto_coleta, amostragem, metodo, frequencia, analista, data_coleta, resultado))
-                    linhas_inseridas += 1
+                    INSERT INTO monitoramento (codigo, origem, area, amostra, ponto_coleta, metodo, analista, data_coleta)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (codigo, origem, area, amostra, ponto_coleta, metodo, analista, data_coleta))
+                    conn.commit()
+                    st.success(f"Amostra {codigo} cadastrada com sucesso!")
                 except sqlite3.IntegrityError:
-                    # Se o código já existir, ele pula para não duplicar
-                    continue
-                    
-    conn.commit()
-    print(f"Sucesso: {linhas_inseridas} registros importados da planilha para o banco de dados!")
+                    st.error(f"O codigo {codigo} ja esta cadastrado.")
 
-# 4. FUNÇÃO 2: Buscar histórico da amostra pelo Código
-def buscar_amostra(codigo_busca):
-    """
-    Busca uma amostra no banco pelo código (Ex: B4-001) e exibe organizada na tela.
-    """
-    cursor.execute("SELECT * FROM monitoramento WHERE codigo = ?", (codigo_busca.strip(),))
-    resultado = cursor.fetchone()
-    
-    if resultado:
-        print(f"\n--- HISTÓRICO DA AMOSTRA: {codigo_busca} ---")
-        print(f"ID no Banco: {resultado[0]}")
-        print(f"Origem:      {resultado[3] if resultado[3] else 'Não informado'}")
-        print(f"Área:        {resultado[4] if resultado[4] else 'Não informado'}")
-        print(f"Sala/Amostra:{resultado[5] if resultado[5] else 'Não informado'}")
-        print(f"Ponto Coleta:{resultado[6] if resultado[6] else 'Não informado'}")
-        print(f"Método:      {resultado[8] if resultado[8] else 'Não informado'}")
-        print(f"Frequência:  {resultado[9] if restriction := resultado[9] else 'Não informado'}")
-        print(f"Analista:    {resultado[10] if resultado[10] else 'Não informado'}")
-        print(f"Data Coleta: {resultado[11] if resultado[11] else 'Não informado'}")
-        print(f"Resultado:   {resultado[12] if resultado[12] else 'Pendente/Análise'}")
-        print("-" * 35)
-    else:
-        print(f"\nAmostra com o código '{codigo_busca}' não foi encontrada no sistema.")
-
-
-# --- ÁREA DE TESTE AUTOMÁTICO ---
-# Simulação dos dados textuais da sua planilha para alimentar o banco de dados
-dados_sua_planilha = """
-,CODE,PONTO,ORIGIN,AREA,SAMPLE,COLLECTION POINT,SAMPLING,METHOD,FREQUÊNCIA,ANALISTA,DATA,RESULTADO FINAL 
-,B4-001,,Environmental Monitoring,Laboratory,Inoculation Room,Laminar Flow FLA001,Swab,Petrifilm AC,Mensal,Natalia,20260826,
-,B4-002,,,,,,,,Mensal,Natalia,20260826,
-,B4-035,,,,,,,,Semanal,,,
-"""
-
-# Executa a importação automática do texto acima
-importar_planilha_csv(dados_sua_planilha)
-
-# Executa uma busca de teste para ver o resultado estruturado
-buscar_amostra("B4-001")
-
-# Fecha o banco de dados
 conn.close()
+            
