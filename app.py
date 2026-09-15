@@ -4,20 +4,15 @@ import sqlite3
 import io
 import hashlib
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Biobanco Restrito", layout="wide")
 
-# --- FUNÇÕES DE SEGURANÇA E BANCO ---
-def gerar_hash(senha):
-    """Criptografa a senha para salvar no banco de dados com segurança."""
-    return hashlib.sha256(senha.encode('utf-8')).hexdigest()
+def crypto_pass(texto_senha):
+    return hashlib.sha256(texto_senha.encode('utf-8')).hexdigest()
 
-def inicializar_banco():
-    """Cria as tabelas de dados e de usuários cadastrados se não existirem."""
+def db_start():
     conn = sqlite3.connect('biobanco_laboratorio.db')
     cursor = conn.cursor()
     
-    # Tabela de Amostras Atualizada e Mais Robusta
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS monitoramento (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +37,6 @@ def inicializar_banco():
     )
     ''')
     
-    # Tabela de Usuários (Login)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,96 +46,73 @@ def inicializar_banco():
     )
     ''')
     
-    # Cria o primeiro usuário administrador padrão caso a tabela esteja limpa
     cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone() == 0:
-        senha_padrao_hash = gerar_hash("lab123")
+    if cursor.fetchone()[0] == 0:
+        hash_adm = crypto_pass("lab123")
         cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", 
-                       ("admin", senha_padrao_hash, "Administrador Geral"))
-        
+                       ("admin", hash_adm, "Administrador Geral"))
     conn.commit()
     return conn, cursor
 
-def verificar_login(usuario, senha):
-    """Valida se o usuário e a senha existem e batem com o banco de dados."""
-    conn = sqlite3.connect('biobanco_laboratorio.db')
-    cursor = conn.cursor()
-    hash_senha = gerar_hash(senha)
-    cursor.execute("SELECT nome_completo FROM usuarios WHERE usuario = ? AND senha_hash = ?", (usuario.strip(), hash_senha))
-    resultado = cursor.fetchone()
-    conn.close()
-    return resultado if resultado else None
+conn, cursor = db_start()
 
-# Inicializa as tabelas do sistema
-conn, cursor = inicializar_banco()
-
-# --- GERENCIAMENTO DE SESSÃO DO STREAMLIT ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "nome_usuario" not in st.session_state:
     st.session_state["nome_usuario"] = ""
 
-# --- TELA DE LOGIN INTERFACES ---
 if not st.session_state["logado"]:
     st.title("🔒 Login - Sistema de Biobanco")
     
     with st.form("formulario_login"):
-        campo_usuario = st.text_input("Usuário:", placeholder="Ex: admin").strip()
+        campo_usuario = st.text_input("Usuario:", placeholder="Ex: admin").strip()
         campo_senha = st.text_input("Senha:", type="password", placeholder="••••••••")
         botao_entrar = st.form_submit_button("Entrar no Sistema")
         
         if botao_entrar:
-            nome_autenticado = verificar_login(campo_usuario, campo_senha)
-            if nome_autenticado:
+            hash_digitado = crypto_pass(campo_senha)
+            cursor.execute("SELECT nome_completo FROM usuarios WHERE usuario = ? AND senha_hash = ?", (campo_usuario, hash_digitado))
+            res_user = cursor.fetchone()
+            
+            if res_user:
                 st.session_state["logado"] = True
-                st.session_state["nome_usuario"] = nome_autenticado[0]
-                st.success(f"Bem-vindo, {nome_autenticado[0]}!")
+                st.session_state["nome_usuario"] = res_user[0]
+                st.success("Sucesso!")
                 st.rerun()
             else:
-                st.error("Usuário ou senha incorretos.")
+                st.error("Credenciais incorretas.")
                 
-    st.info("💡 Acesso inicial? Utilize o usuário **admin** e a senha **lab123**.")
+    st.info("💡 Usuario inicial: admin | Senha: lab123")
     st.stop()
 
-# =========================================================================
-#  SISTEMA LIBERADO (LOGADO)
-# =========================================================================
-
 st.title("🔬 Controle Interno de Biobanco")
-st.sidebar.markdown(f"👤 **Analista Logado:** {st.session_state['nome_usuario']}")
+st.sidebar.markdown(f"👤 **Analista:** {st.session_state['nome_usuario']}")
 
-# --- MENU DE NAVEGAÇÃO LATERAL ---
-opcao = st.sidebar.radio("Navegação do Painel:", [
-    "📋 Consultar e Buscar Amostras", 
-    "📥 Upload de Planilha CSV", 
-    "➕ Novo Cadastro Manual",
-    "⚙️ Gerenciar Usuários",
-    "🚪 Encerrar Sessão"
+opcao = st.sidebar.radio("Navegacao:", [
+    "📋 Consultar Amostras", 
+    "📥 Importar CSV", 
+    "➕ Cadastro Individual",
+    "⚙️ Novo Analista",
+    "🚪 Sair"
 ])
 
-conn = sqlite3.connect('biobanco_laboratorio.db')
-cursor = conn.cursor()
-
-# --- ABA 1: CONSULTAR E BUSCAR ---
-if opcao == "📋 Consultar e Buscar Amostras":
-    st.header("Histórico de Monitoramento Microbiológico")
-    busca = st.text_input("Pesquisar por Código de Amostra (Ex: B4-001):").strip()
+if opcao == "📋 Consultar Amostras":
+    st.header("Historico de Monitoramento")
+    busca = st.text_input("Pesquisar por Codigo (Ex: B4-001):").strip()
     
     if busca:
         df_busca = pd.read_sql_query("SELECT * FROM monitoramento WHERE codigo LIKE ?", conn, params=[f"%{busca}%"])
         if not df_busca.empty:
-            st.success("Amostra localizada no sistema:")
             st.dataframe(df_busca, use_container_width=True)
         else:
-            st.warning("Nenhum registro encontrado para este código.")
+            st.warning("Nenhum registro encontrado.")
             
-    st.subheader("Base de Dados Completa")
+    st.subheader("Base Completa")
     df_todos = pd.read_sql_query("SELECT * FROM monitoramento", conn)
     st.dataframe(df_todos, use_container_width=True)
 
-# --- ABA 2: UPLOAD CSV ---
-elif opcao == "📥 Upload de Planilha CSV":
-    st.header("Importador de Dados em Massa")
+elif opcao == "📥 Importar CSV":
+    st.header("Importador de Dados")
     arquivo_upload = st.file_uploader("Selecione o arquivo CSV:", type=["csv"])
     if arquivo_upload:
         try:
@@ -149,52 +120,43 @@ elif opcao == "📥 Upload de Planilha CSV":
             df_csv = pd.read_csv(io.StringIO(conteudo))
             linhas_inseridas = 0
             for _, linha in df_csv.iterrows():
-                codigo_amostra = str(linha.get('CODE', linha.iloc[0])).strip()
-                if codigo_amostra and codigo_amostra != 'nan':
+                codigo_amostra = str(linha.get('CODE', '─')).strip()
+                if codigo_amostra and codigo_amostra != 'nan' and codigo_amostra.startswith('B4-'):
                     try:
                         cursor.execute("INSERT INTO monitoramento (codigo, analista) VALUES (?, ?)", (codigo_amostra, st.session_state["nome_usuario"]))
                         linhas_inseridas += 1
-                    except sqlite3.IntegrityError:
+                    except:
                         continue
             conn.commit()
-            st.success(f"Processamento concluído: {linhas_inseridas} novas amostras salvas sob sua autoria.")
-        except Exception as e:
-            st.error(f"Erro ao analisar o arquivo: {e}")
+            st.success(f"Pronto! {linhas_inseridas} amostras salvas.")
+        except:
+            st.error("Erro ao ler arquivo.")
 
-# --- ABA 3: CADASTRO MANUAL ---
-elif opcao == "➕ Novo Cadastro Manual":
-    st.header("Registrar Amostra de Forma Individual")
-    st.info(f"✍️ Esta amostra será registrada automaticamente no nome do analista: **{st.session_state['nome_usuario']}**")
+elif opcao == "➕ Cadastro Individual":
+    st.header("Registrar de Forma Individual")
+    st.info(f"✍️ Vinculado ao analista: {st.session_state['nome_usuario']}")
     
     with st.form("form_cadastro_manual"):
-        st.subheader("Informações de Coleta")
-        col1, col2 = st.columns(2)
-        with col1:
-            codigo = st.text_input("Código Absoluto (Ex: B4-040):").strip()
-            origem = st.selectbox("Origem do Monitoramento:", ["Environmental Monitoring", "Storage Tanks", "Processes"])
-            area = st.text_input("Área / Setor:")
-        with col2:
-            ponto_coleta = st.text_input("Ponto Crítico de Coleta:")
-            metodo = st.text_input("Método / Meio de Cultivo:")
-            data_coleta = st.date_input("Data de Coleta").strftime("%Y%m%d")
+        codigo = st.text_input("Codigo Absoluto (Ex: B4-040):").strip()
+        origem = st.selectbox("Origem:", ["Environmental Monitoring", "Storage Tanks", "Processes"])
+        area = st.text_input("Area / Setor:")
+        ponto_coleta = st.text_input("Ponto de Coleta:")
+        metodo = st.text_input("Metodo / Meio:")
+        data_coleta = st.date_input("Data de Coleta").strftime("%Y%m%d")
+        
+        st.subheader("Morfologia")
+        forma = st.selectbox("Forma:", ["N/A", "Punctiform", "Circular", "Irregular"])
+        margem = st.selectbox("Margem:", ["N/A", "Round", "Wavy", "Lobulated"])
+        pigmento = st.text_input("Cor da Colonia:")
+        gram = st.selectbox("Gram:", ["N/A", "Gram-Positiva (+)", "Gram-Negativa (-)"])
+        catalase = st.selectbox("Catalase:", ["N/A", "Positiva (+)", "Negativa (-)"])
+        oxidase = st.selectbox("Oxidase:", ["N/A", "Positiva (+)", "Negativa (-)"])
+        resultado_final = st.text_input("Laudo Final:")
             
-        st.subheader("Morfologia Microbiológica (Opcional)")
-        col3, col4 = st.columns(2)
-        with col3:
-            forma = st.selectbox("Forma:", ["Não se aplica", "Punctiform", "Circular", "Irregular", "Rhizoid"])
-            margem = st.selectbox("Margem:", ["Não se aplica", "Round/Entire", "Wavy/Undulate", "Lobulated"])
-            pigmento = st.text_input("Pigmento / Cor da Colônia:")
-        with col4:
-            gram = st.selectbox("Coloração de Gram:", ["Não se aplica", "Gram-Positiva (+)", "Gram-Negativa (-)"])
-            catalase = st.selectbox("Resultado Catalase:", ["Não se aplica", "Positiva (+)", "Negativa (-)"])
-            oxidase = st.selectbox("Resultado Oxidase:", ["Não se aplica", "Positiva (+)", "Negativa (-)"])
-            
-        resultado_final = st.text_input("Resultado Final / Laudo:")
-            
-        botao_cadastro = st.form_submit_button("Registrar no Sistema")
+        botao_cadastro = st.form_submit_button("Salvar no Sistema")
         if botao_cadastro:
             if not codigo:
-                st.error("O preenchimento do campo 'Código' é obrigatório.")
+                st.error("Codigo obrigatorio.")
             else:
                 try:
                     cursor.execute('''
@@ -207,26 +169,36 @@ elif opcao == "➕ Novo Cadastro Manual":
                         forma, margem, pigmento, gram, catalase, oxidase, resultado_final
                     ))
                     conn.commit()
-                    st.success(f"Amostra {codigo} integrada com sucesso ao biobanco!")
-                except sqlite3.IntegrityError:
-                    st.error("Falha: Este código de amostra já consta no sistema.")
+                    st.success("Salvo com sucesso!")
+                except:
+                    st.error("Codigo duplicado.")
 
-# --- ABA 4: GERENCIAR USUÁRIOS ---
-elif opcao == "⚙️ Gerenciar Usuários":
-    st.header("Controle de Operadores e Analistas")
-    
+elif opcao == "⚙️ Novo Analista":
+    st.header("Controle de Operadores")
     with st.form("cadastro_novo_usuario"):
-        st.subheader("Cadastrar Novo Analista")
-        novo_user = st.text_input("Nome de Usuário (Login para a tela inicial):", placeholder="Ex: natalia.silva").strip()
-        nome_real = st.text_input("Nome Completo do Analista (Aparecerá nos laudos):", placeholder="Ex: Natália Silva")
-        nova_senha = st.text_input("Senha de Acesso:", type="password")
-        botao_usuario = st.form_submit_button("Criar Conta de Analista")
+        novo_user = st.text_input("Login do Analista:").strip()
+        nome_real = st.text_input("Nome Completo:")
+        nova_senha = st.text_input("Senha:", type="password")
+        botao_usuario = st.form_submit_button("Criar Conta")
         
         if botao_usuario:
             if not novo_user or not nova_senha:
-                st.error("Campos de usuário e senha não podem ficar vazios.")
+                st.error("Preencha os campos.")
             else:
                 try:
-                    hash_nova = generar_hash(nova_senha)
+                    hash_nova = crypto_pass(nova_senha)
                     cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", 
                                    (novo_user, hash_nova, nome_real))
+                    conn.commit()
+                    st.success("Conta criada!")
+                except:
+                    st.error("Usuario indisponivel.")
+
+elif opcao == "🚪 Sair":
+    st.session_state["logado"] = False
+    st.session_state["nome_usuario"] = ""
+    st.success("Desconectado.")
+    st.rerun()
+
+conn.close()
+        
