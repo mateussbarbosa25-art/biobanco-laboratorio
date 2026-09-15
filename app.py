@@ -93,7 +93,7 @@ if "logado" not in st.session_state:
 if "nome_usuario" not in st.session_state:
     st.session_state["nome_usuario"] = ""
 
-# --- TELA DE LOGIN AJUSTADA ---
+# --- TELA DE LOGIN ---
 if not st.session_state["logado"]:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
@@ -103,23 +103,22 @@ if not st.session_state["logado"]:
         </div>
     """, unsafe_allow_html=True)
     
-    with st.form("formulario_login"):
-        campo_usuario = st.text_input("Usuario:", placeholder="Ex: admin").strip()
-        campo_senha = st.text_input("Senha:", type="password", placeholder="••••••••")
-        botao_entrar = st.form_submit_button("Entrar no Sistema")
+    campo_usuario = st.text_input("Usuario:", placeholder="Ex: admin", key="log_user").strip()
+    campo_senha = st.text_input("Senha:", type="password", placeholder="••••••••", key="log_pass")
+    botao_entrar = st.button("Entrar no Sistema")
+    
+    if botao_entrar:
+        hash_digitado = crypto_pass(campo_senha)
+        cursor.execute("SELECT nome_completo FROM usuarios WHERE usuario = ? AND senha_hash = ?", (campo_usuario, hash_digitado))
+        res_user = cursor.fetchone()
         
-        if botao_entrar:
-            hash_digitado = crypto_pass(campo_senha)
-            cursor.execute("SELECT nome_completo FROM usuarios WHERE usuario = ? AND senha_hash = ?", (campo_usuario, hash_digitado))
-            res_user = cursor.fetchone()
+        if res_user:
+            st.session_state["logado"] = True
+            st.session_state["nome_usuario"] = res_user
+            st.rerun()
+        else:
+            st.error("Usuario ou senha incorretos.")
             
-            if res_user:
-                st.session_state["logado"] = True
-                st.session_state["nome_usuario"] = res_user[0]
-                st.rerun()
-            else:
-                st.error("Usuario ou senha incorretos.")
-                
     st.markdown("<p style='text-align: center; color: #9aa0a6; font-size: 12px;'>Padrao: admin / lab123</p>", unsafe_allow_html=True)
     st.stop()
 
@@ -153,7 +152,6 @@ if opcao == "📊 Dashboard & Consultas":
     total_amostras = len(df_todos)
     areas_criticas = df_todos['area'].nunique() if total_amostras > 0 else 0
     
-    # Cards de Indicadores Visuais - Corrigido passando o valor correto (3)
     m1, m2, m3 = st.columns(3)
     with m1:
         st.markdown(f"<div class='card'><div class='card-title'>Total de Amostras</div><div class='card-value'>🧬 {total_amostras}</div></div>", unsafe_allow_html=True)
@@ -162,7 +160,6 @@ if opcao == "📊 Dashboard & Consultas":
     with m3:
         st.markdown(f"<div class='card'><div class='card-title'>Responsavel</div><div class='card-value'>🧑‍🔬 Ativo</div></div>", unsafe_allow_html=True)
     
-    # Grafico Volumetrico por Setor
     if total_amostras > 0 and 'area' in df_todos.columns:
         df_valid_areas = df_todos[df_todos['area'].notna() & (df_todos['area'] != '')]
         if not df_valid_areas.empty:
@@ -172,7 +169,7 @@ if opcao == "📊 Dashboard & Consultas":
     
     st.markdown("<hr>", unsafe_allow_html=True)
     st.subheader("🔍 Localizador de Amostras")
-    busca = st.text_input("", placeholder="Digite o codigo exato para buscar (Ex: B4-001)...").strip()
+    busca = st.text_input("", placeholder="Digite o codigo exato para buscar (Ex: B4-001)...", key="search_box").strip()
     
     if busca:
         df_busca = pd.read_sql_query("SELECT * FROM monitoramento WHERE codigo LIKE ?", conn, params=[f"%{busca}%"])
@@ -186,7 +183,6 @@ if opcao == "📊 Dashboard & Consultas":
     if total_amostras > 0:
         st.dataframe(df_todos, use_container_width=True, hide_index=True)
         
-        # Gerador de arquivo para download
         csv_buffer = io.StringIO()
         df_todos.to_csv(csv_buffer, index=False)
         st.download_button(
@@ -235,9 +231,12 @@ elif opcao == "📥 Importar Planilha (CSV)":
         except Exception as e:
             st.error(f"Erro no processamento: {e}")
 
-# --- ABA 3: CADASTRO MANUAL ---
+# --- ABA 3: CADASTRO INDIVIDUAL (FLEXÍVEL SEM FORM) ---
 elif opcao == "➕ Cadastro Individual":
     st.markdown("<h2 style='color: #1a73e8;'>➕ Lançamento de Amostra</h2>", unsafe_allow_html=True)
     st.info(f"✍️ Log de Auditoria: Esta amostra sera vinculada ao analista **{st.session_state['nome_usuario']}**")
     
-    with st.form("form_cadastro_manual"):
+    st.markdown("#### 📍 Dados Básicos da Coleta")
+    codigo = st.text_input("Codigo Unico (Ex: B4-040):", key="c_cod").strip()
+    origem = st.selectbox("Origem do Monitoramento:", ["Environmental Monitoring", "Storage Tanks", "Processes"], key="c_ori")
+    
