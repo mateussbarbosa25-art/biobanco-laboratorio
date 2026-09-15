@@ -17,9 +17,6 @@ def inicializar_banco():
     conn = sqlite3.connect('biobanco_laboratorio.db')
     cursor = conn.cursor()
     
-    # FORÇA A ATUALIZAÇÃO DA TABELA ANTIGA PARA EVITAR CONFLITOS DE COLUNAS
-    cursor.execute("DROP TABLE IF EXISTS monitoramento")
-    
     # Tabela de Amostras Atualizada e Mais Robusta
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS monitoramento (
@@ -230,5 +227,6 @@ elif opcao == "⚙️ Gerenciar Usuários":
                 st.error("Campos de usuário e senha não podem ficar vazios.")
             else:
                 try:
-                    hash_nova = gerar_hash(nova_senha)
-        
+                    hash_nova = generar_hash(nova_senha)
+                    cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", 
+                                   (novo_user, hash_nova, nome_real))
