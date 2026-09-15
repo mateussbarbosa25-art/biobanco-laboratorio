@@ -95,7 +95,7 @@ if "nome_usuario" not in st.session_state:
 
 # --- TELA DE LOGIN ---
 if not st.session_state["logado"]:
-    c1, c2, c3 = st.columns([1, 2, 1])
+    c1, c2, c3 = st.columns()
     with c2:
         st.markdown("<br><br><br>", unsafe_allow_html=True)
         st.markdown("""
@@ -117,7 +117,7 @@ if not st.session_state["logado"]:
                 
                 if res_user:
                     st.session_state["logado"] = True
-                    st.session_state["nome_usuario"] = res_user[0]
+                    st.session_state["nome_usuario"] = res_user
                     st.rerun()
                 else:
                     st.error("Usuario ou senha incorretos.")
@@ -203,7 +203,6 @@ if opcao == "📊 Dashboard & Consultas":
 # --- ABA 2: IMPORTAR CSV ---
 elif opcao == "📥 Importar Planilha (CSV)":
     st.markdown("<h2 style='color: #1a73e8;'>📥 Upload de Planilha (.CSV)</h2>", unsafe_allow_html=True)
-    st.write("Suba o arquivo CSV para alimentar o biobanco de forma automatica.")
     
     arquivo_upload = st.file_uploader("Escolha o arquivo CSV:", type=["csv"])
     if arquivo_upload:
@@ -212,10 +211,8 @@ elif opcao == "📥 Importar Planilha (CSV)":
             df_csv = pd.read_csv(io.StringIO(conteudo))
             linhas_inseridas = 0
             
-            # Mapeia colunas ideais da sua planilha
-            for _, linha in df_csv.iterrows():
-                # Tenta ler 'CODE' ou a primeira coluna caso mude de nome
-                codigo_amostra = str(linha.get('CODE', linha.iloc[0])).strip() if len(linha) > 0 else 'nan'
+            for index, linha in df_csv.iterrows():
+                codigo_amostra = str(linha.get('CODE', 'nan')).strip()
                 origem = str(linha.get('ORIGIN', ''))
                 area = str(linha.get('AREA', ''))
                 amostra = str(linha.get('SAMPLE', ''))
@@ -234,7 +231,13 @@ elif opcao == "📥 Importar Planilha (CSV)":
                         ''', (codigo_amostra, origem, area, amostra, ponto_coleta, amostragem, metodo, frequencia, data_coleta, resultado, st.session_state["nome_usuario"]))
                         linhas_inseridas += 1
                     except:
-                        continue
+                        pass
             conn.commit()
-            st.balloons()
-            st.success(f"Carga concluida! {linhas_inseridas} registros novos foram importados com sucesso.")
+            st.success(f"Sucesso: {linhas_inseridas} registros novos importados.")
+        except Exception as e:
+            st.error(f"Erro no processamento: {e}")
+
+# --- ABA 3: CADASTRO MANUAL ---
+elif opcao == "➕ Cadastro Individual":
+    st.markdown("<h2 style='color: #1a73e8;'>➕ Lançamento de Amostra</h2>", unsafe_allow_html=True)
+    
