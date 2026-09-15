@@ -93,36 +93,34 @@ if "logado" not in st.session_state:
 if "nome_usuario" not in st.session_state:
     st.session_state["nome_usuario"] = ""
 
-# --- TELA DE LOGIN ---
+# --- TELA DE LOGIN AJUSTADA ---
 if not st.session_state["logado"]:
-    c1, c2, c3 = st.columns()
-    with c2:
-        st.markdown("<br><br><br>", unsafe_allow_html=True)
-        st.markdown("""
-            <div style='text-align: center; margin-bottom: 20px;'>
-                <h1 style='color: #1a73e8; font-weight: 800;'>🔬 LIMS BIOBANK</h1>
-                <p style='color: #5f6368; font-size: 14px;'>Controle de Monitoramento Microbiologico</p>
-            </div>
-        """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+        <div style='text-align: center; margin-bottom: 20px;'>
+            <h1 style='color: #1a73e8; font-weight: 800;'>🔬 LIMS BIOBANK</h1>
+            <p style='color: #5f6368; font-size: 14px;'>Controle de Monitoramento Microbiologico</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    with st.form("formulario_login"):
+        campo_usuario = st.text_input("Usuario:", placeholder="Ex: admin").strip()
+        campo_senha = st.text_input("Senha:", type="password", placeholder="••••••••")
+        botao_entrar = st.form_submit_button("Entrar no Sistema")
         
-        with st.form("formulario_login"):
-            campo_usuario = st.text_input("Usuario:", placeholder="Ex: admin").strip()
-            campo_senha = st.text_input("Senha:", type="password", placeholder="••••••••")
-            botao_entrar = st.form_submit_button("Entrar no Sistema")
+        if botao_entrar:
+            hash_digitado = crypto_pass(campo_senha)
+            cursor.execute("SELECT nome_completo FROM usuarios WHERE usuario = ? AND senha_hash = ?", (campo_usuario, hash_digitado))
+            res_user = cursor.fetchone()
             
-            if botao_entrar:
-                hash_digitado = crypto_pass(campo_senha)
-                cursor.execute("SELECT nome_completo FROM usuarios WHERE usuario = ? AND senha_hash = ?", (campo_usuario, hash_digitado))
-                res_user = cursor.fetchone()
+            if res_user:
+                st.session_state["logado"] = True
+                st.session_state["nome_usuario"] = res_user[0]
+                st.rerun()
+            else:
+                st.error("Usuario ou senha incorretos.")
                 
-                if res_user:
-                    st.session_state["logado"] = True
-                    st.session_state["nome_usuario"] = res_user
-                    st.rerun()
-                else:
-                    st.error("Usuario ou senha incorretos.")
-                    
-        st.markdown("<p style='text-align: center; color: #9aa0a6; font-size: 12px;'>Padrao: admin / lab123</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #9aa0a6; font-size: 12px;'>Padrao: admin / lab123</p>", unsafe_allow_html=True)
     st.stop()
 
 # =========================================================================
@@ -155,7 +153,7 @@ if opcao == "📊 Dashboard & Consultas":
     total_amostras = len(df_todos)
     areas_criticas = df_todos['area'].nunique() if total_amostras > 0 else 0
     
-    # Cards de Indicadores Visuais
+    # Cards de Indicadores Visuais - Corrigido passando o valor correto (3)
     m1, m2, m3 = st.columns(3)
     with m1:
         st.markdown(f"<div class='card'><div class='card-title'>Total de Amostras</div><div class='card-value'>🧬 {total_amostras}</div></div>", unsafe_allow_html=True)
@@ -240,4 +238,6 @@ elif opcao == "📥 Importar Planilha (CSV)":
 # --- ABA 3: CADASTRO MANUAL ---
 elif opcao == "➕ Cadastro Individual":
     st.markdown("<h2 style='color: #1a73e8;'>➕ Lançamento de Amostra</h2>", unsafe_allow_html=True)
+    st.info(f"✍️ Log de Auditoria: Esta amostra sera vinculada ao analista **{st.session_state['nome_usuario']}**")
     
+    with st.form("form_cadastro_manual"):
