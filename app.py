@@ -7,7 +7,7 @@ import hashlib
 # --- CONFIGURACAO GERAL DA PAGINA ---
 st.set_page_config(page_title="LIMS Biobank Pro", page_icon="🔬", layout="wide")
 
-# Estilizacao CSS - Interface Premium Azul Classico
+# Estilizacao CSS para deixar a interface limpa e profissional no celular
 st.markdown("""
     <style>
     .main { background-color: #f4f6f9; }
@@ -85,7 +85,7 @@ if not st.session_state["logado"]:
         res_user = cursor.fetchone()
         if res_user:
             st.session_state["logado"] = True
-            st.session_state["nome_usuario"] = res_user[0]
+            st.session_state["nome_usuario"] = res_user
             st.rerun()
         else:
             st.error("Usuario ou senha incorretos.")
@@ -93,101 +93,61 @@ if not st.session_state["logado"]:
     st.stop()
 
 # =========================================================================
-#  SISTEMA AUTENTICADO
+#  SISTEMA FIXO (SEM COMPLICACAO NO CELULAR)
 # =========================================================================
 
-st.sidebar.markdown("""
-    <div style='text-align: center; padding: 10px 0; border-bottom: 1px solid #2c3e50;'>
-        <h3 style='color: #ffffff; margin: 0; font-weight: 700;'>🧪 Biobank Pro</h3>
-        <span style='color: #2cc770; font-size: 12px;'>● Servidor Online</span>
-    </div>
-    <br>
-""", unsafe_allow_html=True)
+st.sidebar.markdown("👤 **Analista Ativo:**\n`" + str(st.session_state['nome_usuario']) + "`")
+if st.sidebar.button("🚪 Sair do Sistema"):
+    st.session_state["logado"] = False
+    st.session_state["nome_usuario"] = ""
+    st.rerun()
 
-st.sidebar.markdown(f"👤 **Analista:**\n`{st.session_state['nome_usuario']}`")
+# --- TELA UNICA PRINCIPAL ---
+st.markdown("<h2 style='color: #1a73e8;'>➕ Lancamento de Amostra Contaminada</h2>", unsafe_allow_html=True)
+st.write("Preencha as informacoes abaixo para registrar o isolado no biobanco.")
 
-opcao = st.sidebar.radio("Navegacao:", [
-    "📊 Dashboard & Consultas", "📥 Importar Planilha (CSV)", 
-    "➕ Registrar Contaminacao", "👥 Gerenciar Analistas", "🚪 Sair"
-])
+st.markdown("#### 📍 Dados Básicos da Coleta")
+codigo = st.text_input("Codigo Unico (Ex: B4-040):", key="c_cod").strip()
+area = st.text_input("Area / Setor da Ocorrencia:", key="c_are")
+ponto_coleta = st.text_input("Ponto de Coleta Amostrado:", key="c_pnt")
+metodo = st.text_input("Metodo Analitico / Meio:", key="c_met")
+data_coleta = st.date_input("Data da Coleta", key="c_dat").strftime("%Y%m%d")
+    
+st.markdown("<br>#### ☣ Quantificacao e Classificacao da Carga Microbiana", unsafe_allow_html=True)
+contagem_ufc = st.number_input("Contagem Absoluta de UFC (Colonias):", min_value=0, value=0, step=1, key="c_ufc")
+nivel_risco = st.selectbox("Classificacao do Limite:", ["Nivel de Alerta", "Nivel de Acao (Critico)"], key="c_rsk")
+tipo_contaminante = st.selectbox("Grupo Biologico:", ["N/A", "Bacteria", "Fungo Filamentoso (Bolor)", "Levedura"], key="c_typ")
+identificacao_micro = st.text_input("Identificacao Taxonomica / Genero (Se houver):", key="c_mic")
+status_acao = st.selectbox("Status da Acao Corretiva:", ["Em Investigacao", "Acao Concluida (Sanitizacao)", "Lote Descartado"], key="c_stt")
 
-# --- ABA 1: DASHBOARD & CONSULTAS ---
-if opcao == "📊 Dashboard & Consultas":
-    st.markdown("<h2 style='color: #1a73e8; font-weight: 700;'>📊 Painel de Controle Integrado</h2>", unsafe_allow_html=True)
-    df_todos = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
-    total_amostras = len(df_todos)
-    
-    criticos = 0
-    em_analise = 0
-    if total_amostras > 0:
-        if 'nivel_risco' in df_todos.columns:
-            criticos = len(df_todos[df_todos['nivel_risco'] == 'Nivel de Acao (Critico)'])
-        if 'status_acao' in df_todos.columns:
-            em_analise = len(df_todos[df_todos['status_acao'] == 'Em Investigacao'])
-    
-    m1, m2, m3 = st.columns(3)
-    with m1:
-        st.markdown(f"<div class='card'><div class='card-title'>Total de Amostras Retidas</div><div class='card-value'>🧬 {total_amostras}</div></div>", unsafe_allow_html=True)
-    with m2:
-        st.markdown(f"<div class='card'><div class='card-title'>Desvios Criticos</div><div class='card-value' style='color:#dc2626;'>🚨 {criticos}</div></div>", unsafe_allow_html=True)
-    with m3:
-        st.markdown(f"<div class='card'><div class='card-title'>Em Investigacao</div><div class='card-value' style='color:#f59e0b;'>⏳ {em_analise}</div></div>", unsafe_allow_html=True)
-    
-    if total_amostras > 0 and 'area' in df_todos.columns:
-        df_valid_areas = df_todos[df_todos['area'].notna() & (df_todos['area'] != '')]
-        if not df_valid_areas.empty:
-            st.subheader("📈 Frequencia de Contaminacao por Area / Setor")
-            st.bar_chart(df_valid_areas['area'].value_counts(), color="#1a73e8")
-    
-    st.markdown("<hr>", unsafe_allow_html=True)
-    st.subheader("🔍 Localizador de Amostras")
-    busca = st.text_input("Buscar por codigo:", placeholder="Digite o codigo da amostra contaminada (Ex: B4-001)...", key="search_box").strip()
-    if busca:
-        df_busca = pd.read_sql_query("SELECT * FROM monitoramento WHERE codigo LIKE ?", conn, params=[f"%{busca}%"])
-        if not df_busca.empty:
-            st.success("Registro localizado!")
-            st.dataframe(df_busca, use_container_width=True, hide_index=True)
-        else:
-            st.warning("Nenhum dado encontrado para este codigo.")
-            
-    st.subheader("📋 Repositorio Central de Amostras Contaminadas")
-    if total_amostras > 0:
-        st.dataframe(df_todos, use_container_width=True, hide_index=True)
-        csv_buffer = io.StringIO()
-        df_todos.to_csv(csv_buffer, index=False)
-        st.download_button(label="📥 Baixar Planilha Completa (Excel/CSV)", data=csv_buffer.getvalue(), file_name="relatorio_global_biobanco.csv", mime="text/csv")
+st.markdown("<br>#### 🧫 Avaliacao de Morfologia Microbiologica", unsafe_allow_html=True)
+forma = st.selectbox("Forma da Colonia:", ["N/A", "Punctiform", "Circular", "Irregular"], key="c_for")
+margem = st.selectbox("Margem da Colonia:", ["N/A", "Round", "Wavy", "Lobulated"], key="c_mar")
+pigmento = st.text_input("Pigmentacao / Cor:", key="c_pig")
+gram = st.selectbox("Classificacao Gram:", ["N/A", "Gram-Positiva (+)", "Gram-Negativa (-)"], key="c_grm")
+catalase = st.selectbox("Catalase:", ["N/A", "Positiva (+)", "Negativa (-)"], key="c_cat")
+oxidase = st.selectbox("Oxidase:", ["N/A", "Positiva (+)", "Negativa (-)"], key="c_oxi")
+resultado_final = st.text_input("Conclusao / Resultado Final:", key="c_res")
+
+st.markdown("<br>", unsafe_allow_html=True)
+botao_cadastro = st.button("Salvar no Biobanco")
+
+if botao_cadastro:
+    if not codigo:
+        st.error("O campo 'Codigo Unico' e estritamente obrigatorio.")
     else:
-        st.info("O banco de dados ainda nao possui registros cadastrados.")
-
-# --- ABA 2: IMPORTAR CSV ---
-elif opcao == "📥 Importar Planilha (CSV)":
-    st.markdown("<h2 style='color: #1a73e8;'>📥 Upload de Planilha (.CSV)</h2>", unsafe_allow_html=True)
-    arquivo_upload = st.file_uploader("Escolha o arquivo CSV:", type=["csv"])
-    if arquivo_upload:
         try:
-            conteudo = arquivo_upload.read().decode("utf-8")
-            df_csv = pd.read_csv(io.StringIO(conteudo))
-            linhas_inseridas = 0
-            for index, linha in df_csv.iterrows():
-                codigo_amostra = str(linha.get('CODE', 'nan')).strip()
-                if codigo_amostra != 'nan' and codigo_amostra.startswith('B4-'):
-                    area = str(linha.get('AREA', ''))
-                    ponto_coleta = str(linha.get('COLLECTION POINT', ''))
-                    metodo = str(linha.get('METHOD', ''))
-                    data_coleta = str(linha.get('DATA', ''))
-                    ufc = int(linha.get('RESULTADO FINAL', 0)) if str(linha.get('RESULTADO FINAL', '')).isdigit() else 0
-                    risco = "Nivel de Alerta" if ufc < 5 else "Nivel de Acao (Critico)"
-                    try:
-                        cursor.execute("INSERT INTO monitoramento (codigo, area, ponto_coleta, metodo, data_coleta, contagem_ufc, nivel_risco, status_acao, analista) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (codigo_amostra, area, ponto_coleta, metodo, data_coleta, ufc, risco, "Em Investigacao", st.session_state["nome_usuario"]))
-                        linhas_inseridas += 1
-                    except:
-                        pass
+            cursor.execute("INSERT INTO monitoramento (codigo, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, identificacao_micro, status_acao, forma, margem, pigmento, coloracao_gram, catalase, oxidase, resultado_final) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (codigo, area, ponto_coleta, metodo, data_coleta, str(st.session_state["nome_usuario"]), contagem_ufc, nivel_risco, tipo_contaminante, identificacao_micro, status_acao, forma, margem, pigmento, gram, catalase, oxidase, resultado_final))
             conn.commit()
-            st.success(f"Sucesso: {linhas_inseridas} registros novos importados.")
+            st.success(f"Amostra {codigo} salva com sucesso!")
         except Exception as e:
-            st.error(f"Erro no processamento: {e}")
+            st.error("Erro: Este codigo ja existe na base de dados.")
 
-# --- ABA 3: REGISTRAR CONTAMINACAO MANUAL ---
-elif opcao == "➕ Registrar Contaminacao":
-    st.markdown("<h2 style='color: #1a73e8;'>➕ Lancamento de Amostra Contaminada</h2>", unsafe_allow_html=True)
-    
+st.markdown("<hr><h3 style='color: #1a73e8;'>📊 Banco de Dados Atual</h3>", unsafe_allow_html=True)
+df_todos = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
+if not df_todos.empty:
+    st.dataframe(df_todos, use_container_width=True, hide_index=True)
+else:
+    st.info("Nenhuma amostra cadastrada ainda.")
+
+conn.close()
