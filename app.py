@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilizacao CSS - Interface Premium Azul Clássico
+# Estilizacao CSS - Interface Premium Azul Classico
 st.markdown("""
     <style>
     .main { background-color: #f4f6f9; }
@@ -72,7 +72,6 @@ def db_start():
     )
     ''')
     
-    # Executa atualizacoes seguras de colunas caso o banco seja antigo
     colunas_novas = {
         "contagem_ufc": "INTEGER DEFAULT 0",
         "nivel_risco": "TEXT DEFAULT 'N/A'",
@@ -92,7 +91,7 @@ def db_start():
         try:
             cursor.execute(f"ALTER TABLE monitoramento ADD COLUMN {col} {tipo}")
         except sqlite3.OperationalError:
-            pass # A coluna ja existe no banco de dados
+            pass
 
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS usuarios (
@@ -103,7 +102,7 @@ def db_start():
     )
     ''')
     cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone()[0] == 0:
+    if cursor.fetchone() == 0:
         hash_adm = crypto_pass("lab123")
         cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", 
                        ("admin", hash_adm, "Administrador Geral"))
@@ -138,7 +137,7 @@ if not st.session_state["logado"]:
         
         if res_user:
             st.session_state["logado"] = True
-            st.session_state["nome_usuario"] = res_user[0]
+            st.session_state["nome_usuario"] = res_user
             st.rerun()
         else:
             st.error("Usuario ou senha incorretos.")
@@ -175,7 +174,6 @@ if opcao == "📊 Dashboard & Consultas":
     df_todos = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
     total_amostras = len(df_todos)
     
-    # Tratamento seguro para colunas calculadas no Dashboard
     criticos = 0
     em_analise = 0
     if total_amostras > 0:
@@ -184,7 +182,6 @@ if opcao == "📊 Dashboard & Consultas":
         if 'status_acao' in df_todos.columns:
             em_analise = len(df_todos[df_todos['status_acao'] == 'Em Investigacao'])
     
-    # Retorno dos 3 Cards Originais no Topo
     m1, m2, m3 = st.columns(3)
     with m1:
         st.markdown(f"<div class='card'><div class='card-title'>Total de Amostras Retidas</div><div class='card-value'>🧬 {total_amostras}</div></div>", unsafe_allow_html=True)
@@ -193,7 +190,6 @@ if opcao == "📊 Dashboard & Consultas":
     with m3:
         st.markdown(f"<div class='card'><div class='card-title'>Em Investigacao</div><div class='card-value' style='color:#f59e0b;'>⏳ {em_analise}</div></div>", unsafe_allow_html=True)
     
-    # Gráfico de frequência por setor
     if total_amostras > 0 and 'area' in df_todos.columns:
         df_valid_areas = df_todos[df_todos['area'].notna() & (df_todos['area'] != '')]
         if not df_valid_areas.empty:
@@ -228,7 +224,7 @@ if opcao == "📊 Dashboard & Consultas":
     else:
         st.info("O banco de dados ainda nao possui registros cadastrados.")
 
-# --- ABA 2: IMPORTAR CSV ---
+# --- ABA 2: IMPORTAR CSV (REVISADA SEM RISCO DE INDENTACAO) ---
 elif opcao == "📥 Importar Planilha (CSV)":
     st.markdown("<h2 style='color: #1a73e8;'>📥 Upload de Planilha (.CSV)</h2>", unsafe_allow_html=True)
     
@@ -241,12 +237,15 @@ elif opcao == "📥 Importar Planilha (CSV)":
             
             for index, linha in df_csv.iterrows():
                 codigo_amostra = str(linha.get('CODE', 'nan')).strip()
-                area = str(linha.get('AREA', ''))
-                ponto_coleta = str(linha.get('COLLECTION POINT', ''))
-                metodo = str(linha.get('METHOD', ''))
-                data_coleta = str(linha.get('DATA', ''))
-                ufc = int(linha.get('RESULTADO FINAL', 0)) if str(linha.get('RESULTADO FINAL', '')).isdigit() else 0
-                risco = "Nivel de Alerta" if ufc < 5 else "Nivel de Acao (Critico)"
                 
-                if codigo_amostra and codigo_amostra != 'nan' and codigo_amostra.startswith('B4-'):
+                # Valida se a linha possui o formato esperado
+                if codigo_amostra != 'nan' and codigo_amostra.startswith('B4-'):
+                    area = str(linha.get('AREA', ''))
+                    ponto_coleta = str(linha.get('COLLECTION POINT', ''))
+                    metodo = str(linha.get('METHOD', ''))
+                    data_coleta = str(linha.get('DATA', ''))
+                    ufc = int(linha.get('RESULTADO FINAL', 0)) if str(linha.get('RESULTADO FINAL', '')).isdigit() else 0
+                    risco = "Nivel de Alerta" if ufc < 5 else "Nivel de Acao (Critico)"
                     
+                    try:
+                        cursor.execute('''
