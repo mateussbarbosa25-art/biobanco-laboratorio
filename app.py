@@ -52,7 +52,7 @@ def db_start():
 
     cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE NOT NULL, senha_hash TEXT NOT NULL, nome_completo TEXT)")
     cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone()[0] == 0:
+    if cursor.fetchone() == 0:
         hash_adm = crypto_pass("lab123")
         cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", ("admin", hash_adm, "Administrador Geral"))
     conn.commit()
@@ -86,7 +86,6 @@ if not st.session_state["logado"]:
         if res_user:
             st.session_state["logado"] = True
             st.session_state["nome_usuario"] = res_user[0]
-            st. those_are_fine = True
             st.rerun()
         else:
             st.error("Usuario ou senha incorretos.")
@@ -190,4 +189,5 @@ elif opcao == "📥 Importar Planilha (CSV)":
 
 # --- ABA 3: REGISTRAR CONTAMINACAO MANUAL ---
 elif opcao == "➕ Registrar Contaminacao":
+    st.markdown("<h2 style='color: #1a73e8;'>➕ Lancamento de Amostra Contaminada</h2>", unsafe_allow_html=True)
     
