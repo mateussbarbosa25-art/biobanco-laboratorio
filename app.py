@@ -107,7 +107,6 @@ def render_login():
     col1, col2, col3 = st.columns([1, 1.8, 1])
     
     with col2:
-        # Uso de st.html para injetar componentes isolados e sem risco de quebra de aspas
         st.html("<div class='login-box'><div style='text-align: center; margin-bottom: 30px;'><span style='font-size: 42px;'>🔬</span><h1 style='color: #f8fafc; font-weight: 800; letter-spacing: -1px; margin-top: 10px; margin-bottom: 5px;'>NEXUS LIMS</h1><p style='color: #94a3b8; font-size: 14px;'>Acesso Restrito ao Biobanco de Segurança</p></div>")
         
         with st.form("login_form"):
@@ -182,12 +181,15 @@ def render_cadastrar_amostra():
             tipo_contaminante = st.text_input("Classificação do Contaminante:")
 
         btn_salvar = st.form_submit_button("💾 Salvar Registro no Banco de Dados")
-        if btn_salvar and codigo and origem:
-            try:
-                cursor.execute("""
-                    INSERT INTO monitoramento (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, status_acao)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Ativo')
-                """, (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante))
-                conn.commit()
-                st.toast(f"Amostra {codigo} salva!", icon="💾")
-                
+        if btn_salvar:
+            if codigo and origem:
+                try:
+                    cursor.execute("""
+                        INSERT INTO monitoramento (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, status_acao)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Ativo')
+                    """, (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante))
+                    conn.commit()
+                    st.toast(f"Amostra {codigo} salva!", icon="💾")
+                    time.sleep(0.5)
+                    st.rerun()
+                    
