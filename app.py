@@ -16,39 +16,28 @@ st.set_page_config(
 # --- ESTILIZAÇÃO CSS AVANÇADA (NEXUS MODERN LAB THEME) ---
 st.markdown("""
     <style>
-    /* Reset e Fundo Moderno */
     .stApp { background-color: #0f172a; }
-    
-    /* Container de Login Centralizado */
     .login-box {
         background-color: #1e293b;
         padding: 40px;
         border-radius: 16px;
         border: 1px solid #334155;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
         margin-top: 5%;
     }
-    
-    /* Top Bar Interna */
     .top-bar {
         background-color: #1e293b; padding: 15px; border-radius: 12px;
         border: 1px solid #334155; margin-bottom: 20px;
         display: flex; justify-content: space-between; align-items: center;
     }
-    
-    /* Cards de Métricas Modernos */
     .metric-card {
         background-color: #1e293b; border-radius: 12px; padding: 20px;
         border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
     .metric-title { color: #94a3b8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
     .metric-value { color: #f8fafc; font-size: 1.875rem; font-weight: 700; margin-top: 4px; }
-    
-    /* Ajustes na Barra Lateral */
     div[data-testid="stSidebar"] { background-color: #090d16 !important; }
     div[data-testid="stSidebar"] .stMarkdown, div[data-testid="stSidebar"] label { color: #ffffff !important; }
-    
-    /* Estilização de inputs e formulários no modo escuro */
     div[data-testid="stForm"] { background-color: transparent !important; border: none !important; padding: 0 !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -93,6 +82,23 @@ def db_start():
 
 conn, cursor = db_start()
 
+def salvar_amostra_no_banco(codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante):
+    """Função isolada para evitar erros de indentação try/except dentro do formulário"""
+    if not codigo or not origem:
+        st.error("Campos Obrigatórios: Código de Barras ID e Origem devem ser preenchidos.")
+        return False
+        
+    try:
+        cursor.execute("""
+            INSERT INTO monitoramento (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, status_acao)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Ativo')
+        """, (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        st.error(f"O Código identificador '{codigo}' já está cadastrado no sistema.")
+        return False
+
 # --- ESTADO DE SESSÃO ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
@@ -105,7 +111,6 @@ if "nome_usuario" not in st.session_state:
 
 def render_login():
     col1, col2, col3 = st.columns([1, 1.8, 1])
-    
     with col2:
         st.html("<div class='login-box'><div style='text-align: center; margin-bottom: 30px;'><span style='font-size: 42px;'>🔬</span><h1 style='color: #f8fafc; font-weight: 800; letter-spacing: -1px; margin-top: 10px; margin-bottom: 5px;'>NEXUS LIMS</h1><p style='color: #94a3b8; font-size: 14px;'>Acesso Restrito ao Biobanco de Segurança</p></div>")
         
@@ -181,15 +186,6 @@ def render_cadastrar_amostra():
             tipo_contaminante = st.text_input("Classificação do Contaminante:")
 
         btn_salvar = st.form_submit_button("💾 Salvar Registro no Banco de Dados")
+        
         if btn_salvar:
-            if codigo and origem:
-                try:
-                    cursor.execute("""
-                        INSERT INTO monitoramento (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, status_acao)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Ativo')
-                    """, (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante))
-                    conn.commit()
-                    st.toast(f"Amostra {codigo} salva!", icon="💾")
-                    time.sleep(0.5)
-                    st.rerun()
-                    
+            
