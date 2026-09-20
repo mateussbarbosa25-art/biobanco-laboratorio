@@ -53,7 +53,7 @@ def db_start():
     cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE NOT NULL, senha_hash TEXT NOT NULL, nome_completo TEXT)")
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone() == 0:
-        hash_adm = crypto_pass("lab123")
+        hash_adm = crypto_pass("lab133")
         cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", ("admin", hash_adm, "Administrador Geral"))
     conn.commit()
     return conn, cursor
@@ -85,11 +85,11 @@ if not st.session_state["logado"]:
         res_user = cursor.fetchone()
         if res_user:
             st.session_state["logado"] = True
-            st.session_state["nome_usuario"] = res_user
+            st.session_state["nome_usuario"] = res_user[0]
             st.rerun()
         else:
             st.error("Usuario ou senha incorretos.")
-    st.markdown("<p style='text-align: center; color: #9aa0a6; font-size: 12px;'>Padrao: admin / lab123</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #9aa0a6; font-size: 12px;'>Padrao: admin / lab133</p>", unsafe_allow_html=True)
     st.stop()
 
 # =========================================================================
@@ -140,14 +140,23 @@ if botao_cadastro:
             cursor.execute("INSERT INTO monitoramento (codigo, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, identificacao_micro, status_acao, forma, margem, pigmento, coloracao_gram, catalase, oxidase, resultado_final) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (codigo, area, ponto_coleta, metodo, data_coleta, str(st.session_state["nome_usuario"]), contagem_ufc, nivel_risco, tipo_contaminante, identificacao_micro, status_acao, forma, margem, pigmento, gram, catalase, oxidase, resultado_final))
             conn.commit()
             st.success(f"Amostra {codigo} salva com sucesso!")
+            st.rerun()
         except Exception as e:
             st.error("Erro: Este codigo ja existe na base de dados.")
 
 st.markdown("<hr><h3 style='color: #1a73e8;'>📊 Banco de Dados Atual</h3>", unsafe_allow_html=True)
 df_todos = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
-if not df_todos.empty:
-    st.dataframe(df_todos, use_container_width=True, hide_index=True)
-else:
-    st.info("Nenhuma amostra cadastrada ainda.")
 
-conn.close()
+if not df_todos.empty:
+    st.dataframe(df_todos, use_container_width=True)
+    
+    # Conversão do DataFrame para CSV pronto para download institucional
+    csv_data = df_todos.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Exportar Dados para Excel (CSV)",
+        data=csv_data,
+        file_name="relatorio_biobanco.csv",
+        mime="text/csv"
+    )
+else:
+    st.info("Nenhuma amostra cadastrada no banco de dados até o momento.")
