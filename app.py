@@ -18,17 +18,12 @@ st.markdown("""
     <style>
     .stApp { background-color: #0f172a; }
     .login-box {
-        background-color: #1e293b;
-        padding: 40px;
-        border-radius: 16px;
-        border: 1px solid #334155;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        margin-top: 5%;
+        background-color: #1e293b; padding: 40px; border-radius: 16px;
+        border: 1px solid #334155; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); margin-top: 5%;
     }
     .top-bar {
-        background-color: #1e293b; padding: 15px; border-radius: 12px;
-        border: 1px solid #334155; margin-bottom: 20px;
-        display: flex; justify-content: space-between; align-items: center;
+        background-color: #1e293b; padding: 15px; border-radius: 12px; border: 1px solid #334155;
+        margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;
     }
     .metric-card {
         background-color: #1e293b; border-radius: 12px; padding: 20px;
@@ -82,21 +77,6 @@ def db_start():
 
 conn, cursor = db_start()
 
-def salvar_amostra_no_banco(codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante):
-    if not codigo or not origem:
-        st.error("Campos Obrigatórios: Código de Barras ID e Origem devem ser preenchidos.")
-        return False
-    try:
-        cursor.execute("""
-            INSERT INTO monitoramento (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, status_acao)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Ativo')
-        """, (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante))
-        conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-        st.error(f"O Código identificador '{codigo}' já está cadastrado no sistema.")
-        return False
-
 # --- ESTADO DE SESSÃO ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
@@ -134,7 +114,7 @@ def render_login():
         st.html("<div style='text-align: center; margin-top: 25px; border-top: 1px solid #334155; padding-top: 15px;'><p style='color: #64748b; font-size: 11px; margin: 0;'>Padrão de Fábrica: admin / lab133</p></div></div>")
 
 def render_painel_amostras():
-    st.markdown(f"""
+    st.markdown("""
         <div class='top-bar'>
             <span style='font-size: 20px; font-weight: 700; color: #f8fafc;'>📋 Gerenciamento Geral de Amostras</span>
             <span style='color: #10b981; font-size: 13px; font-weight: 600;'>● Rede Criptografada Ativa</span>
@@ -186,5 +166,23 @@ def render_cadastrar_amostra():
         btn_salvar = st.form_submit_button("💾 Salvar Registro no Banco de Dados")
         
         if btn_salvar:
-            # Resolvido de vez: Chamada linear em uma única linha para o Python não se perder na sintaxe
-            
+            if not codigo or not起源:
+                st.error("Campos Obrigatórios: Código de Barras ID e Origem devem ser preenchidos.")
+            else:
+                try:
+                    cursor.execute("""
+                        INSERT INTO monitoramento (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, status_acao)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Ativo')
+                    """, (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante))
+                    conn.commit()
+                    st.success("Cadastrado com sucesso!")
+                    time.sleep(0.5)
+                    st.rerun()
+                except sqlite3.IntegrityError:
+                    st.error("Esse Código já existe.")
+
+def log_out_process():
+    st.session_state["logado"] = False
+    st.session_state["nome_usuario"] = ""
+    st.rerun()
+
