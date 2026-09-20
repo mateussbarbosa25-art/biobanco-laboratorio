@@ -185,7 +185,7 @@ if not st.session_state["logado"]:
 else:
     st.sidebar.markdown("<h3 style='color: #60a5fa; margin-top: 10px;'>🔬 NEXUS LIMS</h3>", unsafe_allow_html=True)
     st.sidebar.caption(f"Operador: {st.session_state['nome_usuario']}")
-    st.sidebar.markdown("---")
+    st.sidebar.sidebar_btn = st.sidebar.markdown("---")
     
     modulo = st.sidebar.radio(
         "📋 Módulos do Sistema", 
