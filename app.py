@@ -7,24 +7,36 @@ import hashlib
 # --- CONFIGURACAO GERAL DA PAGINA ---
 st.set_page_config(page_title="LIMS Biobank Pro", page_icon="🔬", layout="wide")
 
-# Estilizacao CSS para deixar a interface limpa e profissional no celular
+# Estilizacao CSS Avançada - Estilo Zendo LIMS
 st.markdown("""
     <style>
-    .main { background-color: #f4f6f9; }
-    div[data-testid="stSidebar"] { background-color: #0e1e2f !important; }
+    .main { background-color: #f8fafc; }
+    div[data-testid="stSidebar"] { background-color: #0f172a !important; }
     div[data-testid="stSidebar"] .stMarkdown, div[data-testid="stSidebar"] label { color: #ffffff !important; }
+    
+    /* Top Bar Simulada */
+    .top-bar {
+        background-color: #ffffff; padding: 15px; border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 20px;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    
+    /* Cards de Métricas Estilo LIMS */
+    .metric-container { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+    .metric-card {
+        background-color: white; border-left: 5px solid #1e40af; padding: 15px;
+        border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); min-width: 180px; flex: 1;
+    }
+    .metric-title { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+    .metric-value { font-size: 22px; font-weight: 700; color: #1e293b; }
+    
+    /* Estilização de Botões e Filtros */
     .stButton>button {
-        background-color: #1a73e8; color: white; border-radius: 6px;
-        padding: 8px 20px; border: none; font-weight: 600; width: 100%;
+        background-color: #2563eb; color: white; border-radius: 4px;
+        padding: 6px 16px; border: none; font-weight: 600; font-size: 13px;
     }
-    .stButton>button:hover { background-color: #1557b0; color: white; }
-    .card {
-        background-color: white; padding: 20px; border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 15px;
-        border-top: 4px solid #1a73e8; text-align: center;
-    }
-    .card-title { color: #5f6368; font-size: 14px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
-    .card-value { color: #202124; font-size: 26px; font-weight: bold; }
+    .stButton>button:hover { background-color: #1d4ed8; color: white; }
+    div[data-testid="stForm"] { background-color: #ffffff; border-radius: 8px; padding: 15px; border: 1px solid #e2e8f0; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -50,12 +62,10 @@ def db_start():
         except sqlite3.OperationalError:
             pass
 
-    # LINHA DE RESET: Limpa a tabela antiga para cadastrar com a senha nova lab133
-    cursor.execute("DROP TABLE IF EXISTS usuarios")
-    
+    # Mantém a tabela estável sem resets contínuos
     cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE NOT NULL, senha_hash TEXT NOT NULL, nome_completo TEXT)")
     cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone()[0] == 0:
+    if cursor.fetchone() == 0:
         hash_adm = crypto_pass("lab133")
         cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", ("admin", hash_adm, "Administrador Geral"))
     conn.commit()
@@ -73,12 +83,12 @@ if not st.session_state["logado"]:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
         <div style='text-align: center; margin-bottom: 20px;'>
-            <h1 style='color: #1a73e8; font-weight: 800;'>🔬 LIMS BIOBANK</h1>
-            <p style='color: #5f6368; font-size: 14px;'>Controle de Monitoramento Microbiologico</p>
+            <h1 style='color: #2563eb; font-weight: 800; letter-spacing: -1px;'>🔬 LIMS BIOBANK</h1>
+            <p style='color: #64748b; font-size: 14px;'>Sistema Avançado de Gestão Microbiológica</p>
         </div>
     """, unsafe_allow_html=True)
     
-    campo_usuario = st.text_input("Usuario:", placeholder="Ex: admin", key="log_user").strip()
+    campo_usuario = st.text_input("Usuário:", placeholder="Ex: admin", key="log_user").strip()
     campo_senha = st.text_input("Senha:", type="password", placeholder="••••••••", key="log_pass")
     botao_entrar = st.button("Entrar no Sistema")
     
@@ -88,77 +98,105 @@ if not st.session_state["logado"]:
         res_user = cursor.fetchone()
         if res_user:
             st.session_state["logado"] = True
-            # Evita tupla na exibição do nome do usuário
             st.session_state["nome_usuario"] = res_user[0]
             st.rerun()
         else:
-            st.error("Usuario ou senha incorretos.")
-    st.markdown("<p style='text-align: center; color: #9aa0a6; font-size: 12px;'>Padrao: admin / lab133</p>", unsafe_allow_html=True)
+            st.error("Usuário ou senha incorretos.")
+    st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 12px;'>Padrão: admin / lab133</p>", unsafe_allow_html=True)
     st.stop()
 
 # =========================================================================
-#  SISTEMA FIXO (SEM COMPLICACAO NO CELULAR)
+#  INTERFACE LOGADA - ESTILO ZENDO LIMS
 # =========================================================================
 
-st.sidebar.markdown("👤 **Analista Ativo:**\n`" + str(st.session_state['nome_usuario']) + "`")
-if st.sidebar.button("🚪 Sair do Sistema"):
+# --- BARRA LATERAL (MENU E NAVEGAÇÃO DE ABAS) ---
+st.sidebar.markdown(f"🔬 **Zendo Biobank**\n\n`Usuário: {st.session_state['nome_usuario']}`")
+st.sidebar.markdown("---")
+
+# Menu de Abas igual ao menu lateral do Zendo LIMS
+aba_selecionada = st.sidebar.radio(
+    "📋 Módulos do Sistema",
+    ["📦 Painel de Pedidos & Amostras", "➕ Cadastrar Nova Amostra"]
+)
+
+st.sidebar.markdown("---")
+if st.sidebar.button("🚪 Encerrar Sessão", use_container_width=True):
     st.session_state["logado"] = False
     st.session_state["nome_usuario"] = ""
     st.rerun()
 
-# --- TELA UNICA PRINCIPAL ---
-st.markdown("<h2 style='color: #1a73e8;'>➕ Lancamento de Amostra Contaminada</h2>", unsafe_allow_html=True)
-st.write("Preencha as informacoes abaixo para registrar o isolado no biobanco.")
+# Recupera os dados para popular os indicadores e tabelas
+df_dados = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
 
-st.markdown("#### 📍 Dados Básicos da Coleta")
-codigo = st.text_input("Codigo Unico (Ex: B4-040):", key="c_cod").strip()
-area = st.text_input("Area / Setor da Ocorrencia:", key="c_are")
-ponto_coleta = st.text_input("Ponto de Coleta Amostrado:", key="c_pnt")
-metodo = st.text_input("Metodo Analitico / Meio:", key="c_met")
-data_coleta = st.date_input("Data da Coleta", key="c_dat").strftime("%Y%m%d")
+# --- ABA 1: CONSOLE DE PEDIDOS (PARECIDO COM A IMAGEM) ---
+if aba_selecionada == "📦 Painel de Pedidos & Amostras":
     
-st.markdown("<br>#### ☣ Quantificacao e Classificacao da Carga Microbiana", unsafe_allow_html=True)
-contagem_ufc = st.number_input("Contagem Absoluta de UFC (Colonias):", min_value=0, value=0, step=1, key="c_ufc")
-nivel_risco = st.selectbox("Classificacao do Limite:", ["Nivel de Alerta", "Nivel de Acao (Critico)"], key="c_rsk")
-tipo_contaminante = st.selectbox("Grupo Biologico:", ["N/A", "Bacteria", "Fungo Filamentoso (Bolor)", "Levedura"], key="c_typ")
-identificacao_micro = st.text_input("Identificacao Taxonomica / Genero (Se houver):", key="c_mic")
-status_acao = st.selectbox("Status da Acao Corretiva:", ["Em Investigacao", "Acao Concluida (Sanitizacao)", "Lote Descartado"], key="c_stt")
+    # Top Bar de Título do LIMS
+    st.markdown("""
+        <div class='top-bar'>
+            <span style='font-size: 20px; font-weight: 700; color: #1e293b;'>📋 Gerenciamento Geral de Amostras</span>
+            <span style='color: #64748b; font-size: 13px;'>Status: Online</span>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Indicadores Numéricos de Carga Microbiana no Topo (Métricas)
+    total_amostras = len(df_dados)
+    alertas = len(df_dados[df_dados['nivel_risco'] == "Nivel de Alerta"]) if total_text := total_amostras else 0
+    criticos = len(df_dados[df_dados['nivel_risco'] == "Nivel de Acao (Critico)"]) if total_text else 0
+    
+    st.markdown(f"""
+        <div class='metric-container'>
+            <div class='metric-card'><div class='metric-title'>Total de Pedidos</div><div class='metric-value'>{total_amostras}</div></div>
+            <div class='metric-card' style='border-left-color: #eab308;'><div class='metric-title'>Em Alerta</div><div class='metric-value'>{alertas}</div></div>
+            <div class='metric-card' style='border-left-color: #ef4444;'><div class='metric-title'>Críticos (Ação)</div><div class='metric-value'>{criticos}</div></div>
+        </div>
+    """, unsafe_allow_html=True)
 
-st.markdown("<br>#### 🧫 Avaliacao de Morfologia Microbiologica", unsafe_allow_html=True)
-forma = st.selectbox("Forma da Colonia:", ["N/A", "Punctiform", "Circular", "Irregular"], key="c_for")
-margem = st.selectbox("Margem da Colonia:", ["N/A", "Round", "Wavy", "Lobulated"], key="c_mar")
-pigmento = st.text_input("Pigmentacao / Cor:", key="c_pig")
-gram = st.selectbox("Classificacao Gram:", ["N/A", "Gram-Positiva (+)", "Gram-Negativa (-)"], key="c_grm")
-catalase = st.selectbox("Catalase:", ["N/A", "Positiva (+)", "Negativa (-)"], key="c_cat")
-oxidase = st.selectbox("Oxidase:", ["N/A", "Positiva (+)", "Negativa (-)"], key="c_oxi")
-resultado_final = st.text_input("Conclusao / Resultado Final:", key="c_res")
+    # Divisão em duas colunas: Filtros Avançados (Esquerda) e Tabela Grid (Direita)
+    col_filtros, col_grid = st.columns([1, 3])
+    
+    with col_filtros:
+        st.markdown("<p style='font-weight: 700; margin-bottom: 5px; color: #1e293b;'>🔍 Filtros de Busca</p>", unsafe_allow_html=True)
+        with st.form("form_filtros"):
+            filtro_codigo = st.text_input("Código da Amostra:")
+            filtro_risco = st.selectbox("Nível de Risco:", ["Todos", "Nivel de Alerta", "Nivel de Acao (Critico)"])
+            filtro_grupo = st.selectbox("Grupo Biológico:", ["Todos", "Bacteria", "Fungo Filamentoso (Bolor)", "Levedura"])
+            aplicar_filtro = st.form_submit_button("Filtrar")
+            
+        # Aplicação dos filtros no DataFrame
+        df_filtrado = df_dados.copy()
+        if filtro_codigo:
+            df_filtrado = df_filtrado[df_filtrado['codigo'].str.contains(filtro_codigo, case=False)]
+        if filtro_risco != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['nivel_risco'] == filtro_risco]
+        if filtro_grupo != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['tipo_contaminante'] == filtro_grupo]
 
-st.markdown("<br>", unsafe_allow_html=True)
-botao_cadastro = st.button("Salvar no Biobanco")
+    with col_grid:
+        st.markdown("<p style='font-weight: 700; margin-bottom: 5px; color: #1e293b;'>📊 Registros Localizados</p>", unsafe_allow_html=True)
+        if not df_filtrado.empty:
+            # Exibe a planilha interativa estilo grid da foto
+            st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+            
+            # Exportador de dados integrado
+            csv_data = df_filtrado.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Exportar Seleção atual (CSV/Excel)",
+                data=csv_data,
+                file_name="lims_export.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("Nenhuma amostra corresponde aos critérios de filtragem selecionados.")
 
-if botao_cadastro:
-    if not codigo:
-        st.error("O campo 'Codigo Unico' e estritamente obrigatorio.")
-    else:
-        try:
-            cursor.execute("INSERT INTO monitoramento (codigo, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, identificacao_micro, status_acao, forma, margem, pigmento, coloracao_gram, catalase, oxidase, resultado_final) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (codigo, area, ponto_coleta, metodo, data_coleta, str(st.session_state["nome_usuario"]), contagem_ufc, nivel_risco, tipo_contaminante, identificacao_micro, status_acao, forma, margem, pigmento, gram, catalase, oxidase, resultado_final))
-            conn.commit()
-            st.success(f"Amostra {codigo} salva com sucesso!")
-            st.rerun()
-        except Exception as e:
-            st.error("Erro: Este codigo ja existe na base de dados.")
-
-st.markdown("<hr><h3 style='color: #1a73e8;'>📊 Banco de Dados Atual</h3>", unsafe_allow_html=True)
-df_todos = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
-
-if not df_todos.empty:
-    st.dataframe(df_todos, use_container_width=True)
-    csv_data = df_todos.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Exportar Dados para Excel (CSV)",
-        data=csv_data,
-        file_name="relatorio_biobanco.csv",
-        mime="text/csv"
-    )
-else:
-    st.info("Nenhuma amostra cadastrada no banco de dados até o momento.")
+# --- ABA 2: FORMULÁRIO DE LANÇAMENTO ---
+elif aba_selecionada == "➕ Cadastrar Nova Amostra":
+    st.markdown("<h2 style='color: #2563eb;'>➕ Registro Técnico de Isolado</h2>", unsafe_allow_html=True)
+    st.write("Insira as propriedades analíticas coletadas abaixo.")
+    
+    st.markdown("#### 📍 Informações de Rastreabilidade")
+    codigo = st.text_input("Código Único da Amostra:", key="c_cod").strip()
+    area = st.text_input("Setor de Coleta / Área:", key="c_are")
+    ponto_coleta = st.text_input("Ponto Amostrado Específico:", key="c_pnt")
+    metodo = st.text_input("Meio de Cultura / Método:", key="c_met")
+    
