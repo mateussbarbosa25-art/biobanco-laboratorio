@@ -40,7 +40,6 @@ def crypto_pass(texto_senha):
     return hashlib.sha256(texto_senha.encode('utf-8')).hexdigest()
 
 def db_start():
-    # check_same_thread=False é crucial para evitar travamentos no servidor do Streamlit
     conn = sqlite3.connect('biobanco_laboratorio.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute("""
@@ -52,7 +51,6 @@ def db_start():
         )
     """)
     
-    # Tratamento preventivo de colunas para bancos já criados
     colunas_novas = {
         "contagem_ufc": "INTEGER DEFAULT 0", "nivel_risco": "TEXT DEFAULT 'N/A'",
         "tipo_contaminante": "TEXT DEFAULT 'N/A'", "identificacao_micro": "TEXT DEFAULT 'N/A'",
@@ -109,7 +107,8 @@ def render_login():
                 res_user = cursor.fetchone()
                 if res_user:
                     st.session_state["logado"] = True
-                    st.session_state["nome_usuario"] = res_user[0]
+                    # .fetchone() retorna uma tupla, pegamos apenas a string do índice 0
+                    st.session_state["nome_usuario"] = str(res_user[0])
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -185,14 +184,23 @@ def log_out_process():
     st.rerun()
 
 # =========================================================================
-#  ROTEAMENTO DINÂMICO DE SEGURANÇA (Garante carregamento correto na nuvem)
+#  ROTEAMENTO DINÂMICO DE SEGURANÇA
 # =========================================================================
 
 if not st.session_state["logado"]:
-    # Se não estiver logado, a única página disponível na árvore de navegação é a de login
-    paginas_visiveis = {"AUTENTICAÇÃO": [st.Page(render_login, title="Acesso Restrito", icon="🔒")]}
+    paginas_visiveis = {
+        "AUTENTICAÇÃO": [
+            st.Page(render_login, title="Acesso Restrito", icon="🔒")
+        ]
+    }
 else:
-    # Se estiver logado, carrega as ferramentas operacionais
     paginas_visiveis = {
         "ZENDO BIOBANK": [
-            
+            st.Page(render_painel_amostras, title="Painel de Pedidos & Amostras", icon="📦"),
+            st.Page(render_cadastrar_amostra, title="Cadastrar Nova Amostra", icon="➕")
+        ],
+        "SESSÃO": [
+            st.Page(log_out_process, title="Encerrar Sessão", icon="🚪")
+        ]
+    }
+    
