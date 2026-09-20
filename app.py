@@ -62,7 +62,6 @@ def db_start():
         except sqlite3.OperationalError:
             pass
 
-    # Mantém a tabela estável sem resets contínuos
     cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE NOT NULL, senha_hash TEXT NOT NULL, nome_completo TEXT)")
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone() == 0:
@@ -109,11 +108,9 @@ if not st.session_state["logado"]:
 #  INTERFACE LOGADA - ESTILO ZENDO LIMS
 # =========================================================================
 
-# --- BARRA LATERAL (MENU E NAVEGAÇÃO DE ABAS) ---
 st.sidebar.markdown(f"🔬 **Zendo Biobank**\n\n`Usuário: {st.session_state['nome_usuario']}`")
 st.sidebar.markdown("---")
 
-# Menu de Abas igual ao menu lateral do Zendo LIMS
 aba_selecionada = st.sidebar.radio(
     "📋 Módulos do Sistema",
     ["📦 Painel de Pedidos & Amostras", "➕ Cadastrar Nova Amostra"]
@@ -125,13 +122,11 @@ if st.sidebar.button("🚪 Encerrar Sessão", use_container_width=True):
     st.session_state["nome_usuario"] = ""
     st.rerun()
 
-# Recupera os dados para popular os indicadores e tabelas
 df_dados = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
 
-# --- ABA 1: CONSOLE DE PEDIDOS (PARECIDO COM A IMAGEM) ---
+# --- ABA 1: CONSOLE DE PEDIDOS ---
 if aba_selecionada == "📦 Painel de Pedidos & Amostras":
     
-    # Top Bar de Título do LIMS
     st.markdown("""
         <div class='top-bar'>
             <span style='font-size: 20px; font-weight: 700; color: #1e293b;'>📋 Gerenciamento Geral de Amostras</span>
@@ -139,10 +134,10 @@ if aba_selecionada == "📦 Painel de Pedidos & Amostras":
         </div>
     """, unsafe_allow_html=True)
     
-    # Indicadores Numéricos de Carga Microbiana no Topo (Métricas)
+    # Linhas corrigidas aqui:
     total_amostras = len(df_dados)
-    alertas = len(df_dados[df_dados['nivel_risco'] == "Nivel de Alerta"]) if total_text := total_amostras else 0
-    criticos = len(df_dados[df_dados['nivel_risco'] == "Nivel de Acao (Critico)"]) if total_text else 0
+    alertas = len(df_dados[df_dados['nivel_risco'] == "Nivel de Alerta"]) if total_amostras > 0 else 0
+    criticos = len(df_dados[df_dados['nivel_risco'] == "Nivel de Acao (Critico)"]) if total_amostras > 0 else 0
     
     st.markdown(f"""
         <div class='metric-container'>
@@ -152,7 +147,6 @@ if aba_selecionada == "📦 Painel de Pedidos & Amostras":
         </div>
     """, unsafe_allow_html=True)
 
-    # Divisão em duas colunas: Filtros Avançados (Esquerda) e Tabela Grid (Direita)
     col_filtros, col_grid = st.columns([1, 3])
     
     with col_filtros:
@@ -163,7 +157,6 @@ if aba_selecionada == "📦 Painel de Pedidos & Amostras":
             filtro_grupo = st.selectbox("Grupo Biológico:", ["Todos", "Bacteria", "Fungo Filamentoso (Bolor)", "Levedura"])
             aplicar_filtro = st.form_submit_button("Filtrar")
             
-        # Aplicação dos filtros no DataFrame
         df_filtrado = df_dados.copy()
         if filtro_codigo:
             df_filtrado = df_filtrado[df_filtrado['codigo'].str.contains(filtro_codigo, case=False)]
@@ -175,10 +168,8 @@ if aba_selecionada == "📦 Painel de Pedidos & Amostras":
     with col_grid:
         st.markdown("<p style='font-weight: 700; margin-bottom: 5px; color: #1e293b;'>📊 Registros Localizados</p>", unsafe_allow_html=True)
         if not df_filtrado.empty:
-            # Exibe a planilha interativa estilo grid da foto
             st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
             
-            # Exportador de dados integrado
             csv_data = df_filtrado.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Exportar Seleção atual (CSV/Excel)",
@@ -199,4 +190,10 @@ elif aba_selecionada == "➕ Cadastrar Nova Amostra":
     area = st.text_input("Setor de Coleta / Área:", key="c_are")
     ponto_coleta = st.text_input("Ponto Amostrado Específico:", key="c_pnt")
     metodo = st.text_input("Meio de Cultura / Método:", key="c_met")
+    data_coleta = st.date_input("Data da Coleta", key="c_dat").strftime("%Y%m%d")
+        
+    st.markdown("<br>#### ☣ Análise Quantitativa e Biológica", unsafe_allow_html=True)
+    contagem_ufc = st.number_input("Contagem Absoluta (UFC):", min_value=0, value=0, step=1, key="c_ufc")
+    nivel_risco = st.selectbox("Classificação de Limite:", ["Nivel de Alerta", "Nivel de Acao (Critico)"], key="c_rsk")
+    tipo_contaminante = st.selectbox("Grupo Biológico:", ["N/A", "Bacteria", "Fungo Filamentoso (Bolor)", "Levedura"], key="c_typ")
     
