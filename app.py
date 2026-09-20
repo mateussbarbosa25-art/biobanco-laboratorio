@@ -26,7 +26,7 @@ st.markdown("""
         border-radius: 16px;
         border: 1px solid #334155;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-        margin-top: 10%;
+        margin-top: 5%;
     }
     
     /* Top Bar Interna */
@@ -107,6 +107,7 @@ def render_login():
     col1, col2, col3 = st.columns([1, 1.8, 1])
     
     with col2:
+        # Fechamento correto da tag div e da string na linha abaixo
         st.markdown("""
             <div class="login-box">
                 <div style='text-align: center; margin-bottom: 30px;'>
@@ -114,6 +115,7 @@ def render_login():
                     <h1 style='color: #f8fafc; font-weight: 800; letter-spacing: -1px; margin-top: 10px; margin-bottom: 5px;'>NEXUS LIMS</h1>
                     <p style='color: #94a3b8; font-size: 14px;'>Acesso Restrito ao Biobanco de Segurança</p>
                 </div>
+            </div>
         """, unsafe_allow_html=True)
         
         with st.form("login_form"):
@@ -128,7 +130,7 @@ def render_login():
                 res_user = cursor.fetchone()
                 if res_user:
                     st.session_state["logado"] = True
-                    # Extrai o nome da tupla retornada do banco
+                    # Extrai o nome de dentro da tupla retornada
                     st.session_state["nome_usuario"] = str(res_user[0])
                     st.toast("Autenticação autorizada!", icon="🔑")
                     time.sleep(0.5)
@@ -137,9 +139,8 @@ def render_login():
                     st.error("Credenciais de segurança incorretas.")
                     
         st.markdown("""
-                <div style='text-align: center; margin-top: 25px; border-top: 1px solid #334155; padding-top: 15px;'>
-                    <p style='color: #64748b; font-size: 11px; margin: 0;'>Padrão de Fábrica: admin / lab133</p>
-                </div>
+            <div style='text-align: center; margin-top: 25px; border-top: 1px solid #334155; padding-top: 15px;'>
+                <p style='color: #64748b; font-size: 11px; margin: 0;'>Padrão de Fábrica: admin / lab133</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -198,5 +199,4 @@ def render_cadastrar_amostra():
             try:
                 cursor.execute("""
                     INSERT INTO monitoramento (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, status_acao)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Ativo')
-                
+                    
