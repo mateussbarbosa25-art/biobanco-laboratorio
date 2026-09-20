@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- ESTILIZAÇÃO CSS AVANÇADA (NEXUS MODERN LAB THEME) ---
+# --- ESTILIZAÇÃO CSS AVANÇADA COM SUPORTE A ALERTAS (NEXUS MODERN LAB THEME) ---
 st.markdown("""
     <style>
     .stApp { background-color: #0f172a; }
@@ -99,6 +99,30 @@ def db_start():
     if cursor.fetchone() == 0:
         hash_adm = crypto_pass("lab133")
         cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", ("admin", hash_adm, "Administrador Geral"))
+    
+    # --- SEEDING AUTOMÁTICO DAS AMOSTRAS DA PLANILHA ---
+    cursor.execute("SELECT COUNT(*) FROM monitoramento")
+    if cursor.fetchone() == 0:
+        amostras_planilha = []
+        # Amostras Mensais B4-001 a B4-034
+        for i in range(1, 35):
+            amostras_planilha.append((
+                f"B4-{str(i).zfill(3)}", "Environmental Monitoring", "Laboratory", "Laminar Flow FLA001", 
+                "Petrifilm AC", "2026-08-26", "Natalia", "Mensal", "Nivel de Alerta", "Em Análise", "Punctiform", "Round"
+            ))
+        # Amostras Semanais B4-035 a B4-038
+        for i in range(35, 39):
+            amostras_planilha.append((
+                f"B4-{str(i).zfill(3)}", "Processes", "Laboratory", "Flow Room", 
+                "N/A", "2026-09-20", "Sistema", "Semanal", "Risco Crítico", "Quarentena / Bloqueado", "N/A", "N/A"
+            ))
+        
+        cursor.executemany("""
+            INSERT OR IGNORE INTO monitoramento (
+                codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, frequencia, nivel_risco, status_acao, forma, margem
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, amostras_planilha)
+        
     conn.commit()
     return conn, cursor
 
@@ -112,7 +136,7 @@ if "nome_usuario" not in st.session_state:
 if "aba_atual" not in st.session_state:
     st.session_state["aba_atual"] = "📦 Painel de Amostras"
 
-# --- DICIONÁRIOS EXTRAÍDOS DA PLANILHA ---
+# --- DICIONÁRIOS DA PLANILHA ---
 OPCOES_ORIGEM = ["Environmental Monitoring", "Storage Tanks", "Amostra", "Processes"]
 OPCOES_AREA = ["Laboratory", "Dissolution", "Line 2", "Line 3", "Line 4", "Line 5", "SBTA 1", "SBTA 2", "Autoclave"]
 OPCOES_PONTO_COLETA = [
@@ -165,8 +189,8 @@ else:
     
     modulo = st.sidebar.radio(
         "📋 Módulos do Sistema", 
-        ["📦 Painel de Amostras", "➕ Cadastrar Nova Amostra"],
-        index=0 if st.session_state["aba_atual"] == "📦 Painel de Amostras" else 1,
+        ["📦 Painel de Amostras", "➕ Cadastrar Nova Amostra", "📝 Laudo Técnico & Ensaios"],
+        index=0 if st.session_state["aba_atual"] == "📦 Painel de Amostras" else (1 if st.session_state["aba_atual"] == "➕ Cadastrar Nova Amostra" else 2),
         key="navegacao_radio"
     )
     st.session_state["aba_atual"] = modulo
@@ -175,28 +199,9 @@ else:
     st.markdown(f"""
         <div class='top-bar'>
             <span style='color: #f8fafc; font-weight: 700; font-size: 1.2rem;'>{st.session_state["aba_atual"]}</span>
-            <span style='color: #94a3b8; font-size: 0.9rem;'>Nexus Edition V1.0</span>
+            <span style='color: #94a3b8; font-size: 0.9rem;'>Nexus Edition V1.1</span>
         </div>
     """, unsafe_allow_html=True)
     
     if st.sidebar.button("🚪 Encerrar Sessão", use_container_width=True):
-        st.session_state["logado"] = False
-        st.session_state["nome_usuario"] = ""
-        st.rerun()
-
-    # =========================================================================
-    #  MÓDULO: PAINEL DE AMOSTRAS
-    # =========================================================================
-    if st.session_state["aba_atual"] == "📦 Painel de Amostras":
-        df_metricas = pd.read_sql_query("SELECT nivel_risco FROM monitoramento", conn)
-        total_amostras = len(df_metricas)
-        criticas = len(df_metricas[df_metricas['nivel_risco'] == "Risco Crítico"])
-        alertas = len(df_metricas[df_metricas['nivel_risco'] == "Nivel de Alerta"])
-        
-        m1, m2, m3 = st.columns(3)
-        m1.markdown(f"<div class='metric-card'><div class='metric-title'>Total de Amostras</div><div class='metric-value'>{total_amostras}</div></div>", unsafe_allow_html=True)
-        m2.markdown(f"<div class='metric-card'><div class='metric-title'>Status de Alerta</div><div class='metric-value' style='color: #f59e0b;'>{alertas}</div></div>", unsafe_allow_html=True)
-        m3.markdown(f"<div class='metric-card'><div class='metric-title'>Risco Crítico (Contaminadas)</div><div class='metric-value' style='color: #ef4444;'>{criticas}</div></div>", unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
         
