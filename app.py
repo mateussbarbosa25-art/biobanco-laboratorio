@@ -84,10 +84,11 @@ if "nome_usuario" not in st.session_state:
     st.session_state["nome_usuario"] = ""
 
 # =========================================================================
-#  VISTAS DAS PÁGINAS DO SISTEMA
+#  FLUXO CENTRALIZADO DE RENDERIZAÇÃO
 # =========================================================================
 
-def render_login():
+if not st.session_state["logado"]:
+    # Se não estiver logado, exibe apenas a caixa de login
     col1, col2, col3 = st.columns([1, 1.8, 1])
     with col2:
         st.html("<div class='login-box'><div style='text-align: center; margin-bottom: 30px;'><span style='font-size: 42px;'>🔬</span><h1 style='color: #f8fafc; font-weight: 800; letter-spacing: -1px; margin-top: 10px; margin-bottom: 5px;'>NEXUS LIMS</h1><p style='color: #94a3b8; font-size: 14px;'>Acesso Restrito ao Biobanco de Segurança</p></div>")
@@ -104,7 +105,7 @@ def render_login():
                 res_user = cursor.fetchone()
                 if res_user:
                     st.session_state["logado"] = True
-                    # Converte de forma segura a resposta para exibir o nome limpo no menu lateral
+                    # Salva apenas o nome como string sem caracteres de tupla
                     st.session_state["nome_usuario"] = str(res_user[0])
                     st.toast("Autenticação autorizada!", icon="🔑")
                     time.sleep(0.5)
@@ -114,71 +115,69 @@ def render_login():
                     
         st.html("<div style='text-align: center; margin-top: 25px; border-top: 1px solid #334155; padding-top: 15px;'><p style='color: #64748b; font-size: 11px; margin: 0;'>Padrão de Fábrica: admin / lab133</p></div></div>")
 
-def render_painel_amostras():
-    st.markdown("""
-        <div class='top-bar'>
-            <span style='font-size: 20px; font-weight: 700; color: #f8fafc;'>📋 Gerenciamento Geral de Amostras</span>
-            <span style='color: #10b981; font-size: 13px; font-weight: 600;'>● Rede Criptografada Ativa</span>
-        </div>
-    """, unsafe_allow_html=True)
+else:
+    # Se estiver logado, renderiza o painel operacional completo com abas estáveis
+    st.sidebar.markdown("<h3 style='color: #60a5fa; margin-top: 10px;'>🔬 NEXUS LIMS</h3>", unsafe_allow_html=True)
+    st.sidebar.caption(f"Operador: {st.session_state['nome_usuario']}")
+    st.sidebar.markdown("---")
     
-    df_dados = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
-    total_amostras = len(df_dados)
-    alertas_risco = len(df_dados[df_dados['nivel_risco'].str.contains("Alerta|Crítico|Alta", case=False, na=False)]) if total_amostras > 0 else 0
+    # Controle de navegação robusto via rádio lateral
+    modulo = st.sidebar.radio("📋 Módulos do Sistema", ["📦 Painel de Amostras", "➕ Cadastrar Nova Amostra"])
     
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Amostras Custodiadas</div><div class="metric-value">{total_amostras} <span style="font-size:14px; color:#64748b;">vials</span></div></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown(f'<div class="metric-card" style="border-left: 4px solid #ef4444;"><div class="metric-title" style="color: #ef4444;">Níveis de Risco / Alerta</div><div class="metric-value" style="color: #ef4444;">{alertas_risco} <span style="font-size:14px;">críticas</span></div></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown(f'<div class="metric-card" style="border-left: 4px solid #10b981;"><div class="metric-title">Analistas Ativos</div><div class="metric-value">{df_dados["analista"].nunique() if total_amostras > 0 else 0}</div></div>', unsafe_allow_html=True)
-    
-    st.write("")
-    st.subheader("DataGrid do Ecossistema Criogênico", divider="blue")
-    
-    if total_amostras > 0:
-        st.dataframe(df_dados, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhuma amostra localizada na infraestrutura local do banco SQLite.")
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚪 Encerrar Sessão", use_container_width=True):
+        st.session_state["logado"] = False
+        st.session_state["nome_usuario"] = ""
+        st.rerun()
 
-def render_cadastrar_amostra():
-    st.markdown("""
-        <div class='top-bar'>
-            <span style='font-size: 20px; font-weight: 700; color: #f8fafc;'>➕ Adicionar Novo Registro Microbiológico</span>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    with st.form("form_cadastro_amostra", border=True):
-        colA, colB = st.columns(2)
-        with colA:
-            codigo = st.text_input("Código de Barras ID (Único):", placeholder="Ex: BIO-999")
-            origem = st.text_input("Origem da Amostra:")
-            area = st.text_input("Área Laboratorial:")
-            ponto_coleta = st.text_input("Ponto de Coleta:")
-            metodo = st.selectbox("Método de Análise:", ["Cultura Direta", "PCR Rápido", "Sequenciamento NGS", "Isolamento Placa"])
-        with colB:
-            data_coleta = st.date_input("Data de Coleta:", datetime.now()).strftime("%Y-%m-%d")
-            analista = st.text_input("Analista Responsável:", value=st.session_state["nome_usuario"])
-            contagem_ufc = st.number_input("Contagem UFC:", min_value=0, step=1, value=0)
-            nivel_risco = st.selectbox("Nível de Risco Biológico:", ["Seguro", "Nivel de Alerta", "Risco Crítico"])
-            tipo_contaminante = st.text_input("Classificação do Contaminante:")
-
-        btn_salvar = st.form_submit_button("💾 Salvar Registro no Banco de Dados")
+    # --- RENDERIZAÇÃO DO MÓDULO 1: PAINEL DE AMOSTRAS ---
+    if modulo == "📦 Painel de Amostras":
+        st.markdown("""
+            <div class='top-bar'>
+                <span style='font-size: 20px; font-weight: 700; color: #f8fafc;'>📋 Gerenciamento Geral de Amostras</span>
+                <span style='color: #10b981; font-size: 13px; font-weight: 600;'>● Rede Criptografada Ativa</span>
+            </div>
+        """, unsafe_allow_html=True)
         
-        if btn_salvar:
-            if not codigo or not origem:
-                st.error("Campos Obrigatórios: Código de Barras ID e Origem devem ser preenchidos.")
-            else:
-                try:
-                    cursor.execute("""
-                        INSERT INTO monitoramento (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, status_acao)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Ativo')
-                    """, (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante))
-                    conn.commit()
-                    st.success("Cadastrado com sucesso!")
-                    time.sleep(0.5)
-                    st.rerun()
-                except sqlite3.IntegrityError:
-                    st.error("Esse Código já existe.")
+        df_dados = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
+        total_amostras = len(df_dados)
+        alertas_risco = len(df_dados[df_dados['nivel_risco'].str.contains("Alerta|Crítico|Alta", case=False, na=False)]) if total_amostras > 0 else 0
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown(f'<div class="metric-card"><div class="metric-title">Amostras Custodiadas</div><div class="metric-value">{total_amostras} <span style="font-size:14px; color:#64748b;">vials</span></div></div>', unsafe_allow_html=True)
+        with col2:
+            st.markdown(f'<div class="metric-card" style="border-left: 4px solid #ef4444;"><div class="metric-title" style="color: #ef4444;">Níveis de Risco / Alerta</div><div class="metric-value" style="color: #ef4444;">{alertas_risco} <span style="font-size:14px;">críticas</span></div></div>', unsafe_allow_html=True)
+        with col3:
+            st.markdown(f'<div class="metric-card" style="border-left: 4px solid #10b981;"><div class="metric-title">Analistas Ativos</div><div class="metric-value">{df_dados["analista"].nunique() if total_amostras > 0 else 0}</div></div>', unsafe_allow_html=True)
+        
+        st.write("")
+        st.subheader("DataGrid do Ecossistema Criogênico", divider="blue")
+        
+        if total_amostras > 0:
+            st.dataframe(df_dados, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhuma amostra localizada na infraestrutura local do banco SQLite.")
 
+    # --- RENDERIZAÇÃO DO MÓDULO 2: CADASTRO DE AMOSTRA ---
+    elif modulo == "➕ Cadastrar Nova Amostra":
+        st.markdown("""
+            <div class='top-bar'>
+                <span style='font-size: 20px; font-weight: 700; color: #f8fafc;'>➕ Adicionar Novo Registro Microbiológico</span>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        with st.form("form_cadastro_amostra", border=True):
+            colA, colB = st.columns(2)
+            with colA:
+                codigo = st.text_input("Código de Barras ID (Único):", placeholder="Ex: BIO-999")
+                origem = st.text_input("Origem da Amostra:")
+                area = st.text_input("Área Laboratorial:")
+                ponto_coleta = st.text_input("Ponto de Coleta:")
+                metodo = st.selectbox("Método de Análise:", ["Cultura Direta", "PCR Rápido", "Sequenciamento NGS", "Isolamento Placa"])
+            with colB:
+                data_coleta = st.date_input("Data de Coleta:", datetime.now()).strftime("%Y-%m-%d")
+                analista = st.text_input("Analista Responsável:", value=st.session_state["nome_usuario"])
+                contagem_ufc = st.number_input("Contagem UFC:", min_value=0, step=1, value=0)
+                nivel_risco = st.selectbox("Nível de Risco Biológico:", ["Seguro", "Nivel de Alerta", "Risco Crítico"])
+                
