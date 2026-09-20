@@ -83,11 +83,9 @@ def db_start():
 conn, cursor = db_start()
 
 def salvar_amostra_no_banco(codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante):
-    """Função isolada para evitar erros de indentação try/except dentro do formulário"""
     if not codigo or not origem:
         st.error("Campos Obrigatórios: Código de Barras ID e Origem devem ser preenchidos.")
         return False
-        
     try:
         cursor.execute("""
             INSERT INTO monitoramento (codigo, origem, area, ponto_coleta, metodo, data_coleta, analista, contagem_ufc, nivel_risco, tipo_contaminante, status_acao)
@@ -188,4 +186,6 @@ def render_cadastrar_amostra():
         btn_salvar = st.form_submit_button("💾 Salvar Registro no Banco de Dados")
         
         if btn_salvar:
-            
+            sucesso = salvar_amostra_no_banco(
+                codigo, origem, area, ponto_coleta, metodo, data_coleta, 
+                
