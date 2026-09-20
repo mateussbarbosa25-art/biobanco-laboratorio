@@ -104,6 +104,7 @@ def render_login():
                 res_user = cursor.fetchone()
                 if res_user:
                     st.session_state["logado"] = True
+                    # Converte de forma segura a resposta para exibir o nome limpo no menu lateral
                     st.session_state["nome_usuario"] = str(res_user[0])
                     st.toast("Autenticação autorizada!", icon="🔑")
                     time.sleep(0.5)
@@ -166,7 +167,7 @@ def render_cadastrar_amostra():
         btn_salvar = st.form_submit_button("💾 Salvar Registro no Banco de Dados")
         
         if btn_salvar:
-            if not codigo or not起源:
+            if not codigo or not origem:
                 st.error("Campos Obrigatórios: Código de Barras ID e Origem devem ser preenchidos.")
             else:
                 try:
@@ -180,9 +181,4 @@ def render_cadastrar_amostra():
                     st.rerun()
                 except sqlite3.IntegrityError:
                     st.error("Esse Código já existe.")
-
-def log_out_process():
-    st.session_state["logado"] = False
-    st.session_state["nome_usuario"] = ""
-    st.rerun()
 
