@@ -45,7 +45,6 @@ def db_start():
     conn = sqlite3.connect('biobanco_laboratorio.db', check_same_thread=False)
     cursor = conn.cursor()
     
-    # Atualizado com os campos adicionais extraídos da sua planilha (frequência, identificação, koh, etc.)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS monitoramento (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -76,7 +75,6 @@ def db_start():
         )
     """)
     
-    # Scripts de segurança para garantir a migração de colunas na nuvem
     colunas_novas = {
         "frequencia": "TEXT DEFAULT 'N/A'",
         "koh": "TEXT DEFAULT 'N/A'",
@@ -114,9 +112,7 @@ if "nome_usuario" not in st.session_state:
 if "aba_atual" not in st.session_state:
     st.session_state["aba_atual"] = "📦 Painel de Amostras"
 
-# =========================================================================
-#  DICIONÁRIOS PADRONIZADOS EXTRAÍDOS DA SUA PLANILHA (OPÇÕES FIXAS)
-# =========================================================================
+# --- DICIONÁRIOS EXTRAÍDOS DA PLANILHA ---
 OPCOES_ORIGEM = ["Environmental Monitoring", "Storage Tanks", "Amostra", "Processes"]
 OPCOES_AREA = ["Laboratory", "Dissolution", "Line 2", "Line 3", "Line 4", "Line 5", "SBTA 1", "SBTA 2", "Autoclave"]
 OPCOES_PONTO_COLETA = [
@@ -126,7 +122,6 @@ OPCOES_PONTO_COLETA = [
     "Pump Outlet Filter", "Weighing Bench", "Becker", "Bucket", "Spatula", "Floor", "Wall", 
     "Hands (glove)", "Lab Coat", "Drain Dissolution", "Weighing Drain", "Hand-Washing Sink", "Feedstock", "Aseptic Salts"
 ]
-OPCOES_AMOSTRAGEM = ["Swab", "Passive", "MAS-100", "Palating"]
 OPCOES_METHOD = ["Petrifilm AC", "Petrifilm EB", "TSAC", "YPD", "Petrifilm YM", "Cultura Direta", "PCR Rápido", "Sequenciamento NGS"]
 OPCOES_FORMA = ["Punctiform", "Circular", "Filamentous", "Irregular", "Rhizoid", "Fusiform"]
 OPCOES_MARGEM = ["Round", "Wavy", "Lobulated", "Filamentous", "Spiral"]
@@ -154,7 +149,7 @@ if not st.session_state["logado"]:
                 res_user = cursor.fetchone()
                 if res_user:
                     st.session_state["logado"] = True
-                    st.session_state["nome_usuario"] = str(res_user[0])
+                    st.session_state["nome_usuario"] = str(res_user[0]) if isinstance(res_user, tuple) else str(res_user)
                     st.toast("Autenticação autorizada!", icon="🔑")
                     time.sleep(0.5)
                     st.rerun()
@@ -185,7 +180,10 @@ else:
 
     # --- MÓDULO 1: PAINEL DE AMOSTRAS ---
     if st.session_state["aba_atual"] == "📦 Painel de Amostras":
-        col_titulo, col_acao_direta = st.columns()
+        
+        # CORRIGIDO: Passando a proporção exata [3, 1] dentro dos parênteses do st.columns
+        col_titulo, col_acao_direta = st.columns([3, 1])
+        
         with col_titulo:
             st.markdown("""
                 <div class='top-bar' style='margin-bottom: 0px;'>
@@ -203,4 +201,9 @@ else:
         st.write("<br>", unsafe_allow_html=True)
         
         df_dados = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
+        total_amostras = len(df_dados)
+        alertas_risco = len(df_dados[df_dados['nivel_risco'].str.contains("Alerta|Crítico|Alta", case=False, na=False)]) if total_amostras > 0 else 0
         
+        col1, col2, col3 = st.columns(3)
+        with col1:
+    
