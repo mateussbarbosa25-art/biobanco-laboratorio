@@ -204,4 +204,4 @@ else:
     """, unsafe_allow_html=True)
     
     if st.sidebar.button("🚪 Encerrar Sessão", use_container_width=True):
-    
+        
