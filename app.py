@@ -50,9 +50,12 @@ def db_start():
         except sqlite3.OperationalError:
             pass
 
+    # LINHA DE RESET: Limpa a tabela antiga para cadastrar com a senha nova lab133
+    cursor.execute("DROP TABLE IF EXISTS usuarios")
+    
     cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE NOT NULL, senha_hash TEXT NOT NULL, nome_completo TEXT)")
     cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone() == 0:
+    if cursor.fetchone()[0] == 0:
         hash_adm = crypto_pass("lab133")
         cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", ("admin", hash_adm, "Administrador Geral"))
     conn.commit()
@@ -85,6 +88,7 @@ if not st.session_state["logado"]:
         res_user = cursor.fetchone()
         if res_user:
             st.session_state["logado"] = True
+            # Evita tupla na exibição do nome do usuário
             st.session_state["nome_usuario"] = res_user[0]
             st.rerun()
         else:
@@ -149,8 +153,6 @@ df_todos = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", con
 
 if not df_todos.empty:
     st.dataframe(df_todos, use_container_width=True)
-    
-    # Conversão do DataFrame para CSV pronto para download institucional
     csv_data = df_todos.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Exportar Dados para Excel (CSV)",
