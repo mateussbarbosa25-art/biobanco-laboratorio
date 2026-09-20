@@ -44,16 +44,45 @@ def crypto_pass(texto_senha):
 def db_start():
     conn = sqlite3.connect('biobanco_laboratorio.db', check_same_thread=False)
     cursor = conn.cursor()
+    
+    # Atualizado com os campos adicionais extraídos da sua planilha (frequência, identificação, koh, etc.)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS monitoramento (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE NOT NULL, origem TEXT, area TEXT, 
-            ponto_coleta TEXT, metodo TEXT, data_coleta TEXT, analista TEXT, contagem_ufc INTEGER, 
-            nivel_risco TEXT, tipo_contaminante TEXT, identificacao_micro TEXT, status_acao TEXT, 
-            forma TEXT, margem TEXT, pigmento TEXT, coloracao_gram TEXT, catalase TEXT, oxidase TEXT, resultado_final TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            codigo TEXT UNIQUE NOT NULL, 
+            origem TEXT, 
+            area TEXT, 
+            ponto_coleta TEXT, 
+            metodo TEXT, 
+            data_coleta TEXT, 
+            analista TEXT, 
+            contagem_ufc INTEGER, 
+            nivel_risco TEXT, 
+            tipo_contaminante TEXT, 
+            identificacao_micro TEXT, 
+            status_acao TEXT, 
+            forma TEXT, 
+            margem TEXT, 
+            pigmento TEXT, 
+            coloracao_gram TEXT, 
+            catalase TEXT, 
+            oxidase TEXT, 
+            resultado_final TEXT,
+            frequencia TEXT,
+            koh TEXT,
+            metodo_terceirizado TEXT,
+            empresa_terceira TEXT,
+            data_finalizacao TEXT
         )
     """)
     
+    # Scripts de segurança para garantir a migração de colunas na nuvem
     colunas_novas = {
+        "frequencia": "TEXT DEFAULT 'N/A'",
+        "koh": "TEXT DEFAULT 'N/A'",
+        "metodo_terceirizado": "TEXT DEFAULT 'N/A'",
+        "empresa_terceira": "TEXT DEFAULT 'N/A'",
+        "data_finalizacao": "TEXT DEFAULT 'N/A'",
         "contagem_ufc": "INTEGER DEFAULT 0", "nivel_risco": "TEXT DEFAULT 'N/A'",
         "tipo_contaminante": "TEXT DEFAULT 'N/A'", "identificacao_micro": "TEXT DEFAULT 'N/A'",
         "status_acao": "TEXT DEFAULT 'N/A'", "forma": "TEXT DEFAULT 'N/A'",
@@ -82,13 +111,33 @@ if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "nome_usuario" not in st.session_state:
     st.session_state["nome_usuario"] = ""
+if "aba_atual" not in st.session_state:
+    st.session_state["aba_atual"] = "📦 Painel de Amostras"
+
+# =========================================================================
+#  DICIONÁRIOS PADRONIZADOS EXTRAÍDOS DA SUA PLANILHA (OPÇÕES FIXAS)
+# =========================================================================
+OPCOES_ORIGEM = ["Environmental Monitoring", "Storage Tanks", "Amostra", "Processes"]
+OPCOES_AREA = ["Laboratory", "Dissolution", "Line 2", "Line 3", "Line 4", "Line 5", "SBTA 1", "SBTA 2", "Autoclave"]
+OPCOES_PONTO_COLETA = [
+    "Inoculation Room", "Flow Room", "Preparation", "Weighing", "Team Member", "Dissolution Room", 
+    "Inoculation Anteroom", "Laminar Flow FLA001", "Laminar Flow FLA002", "Laminar Flow FLA003", 
+    "Laminar Flow FLA004", "Laminar Flow FLA005", "Laminar Flow FLA006", "Dissolution Tank", 
+    "Pump Outlet Filter", "Weighing Bench", "Becker", "Bucket", "Spatula", "Floor", "Wall", 
+    "Hands (glove)", "Lab Coat", "Drain Dissolution", "Weighing Drain", "Hand-Washing Sink", "Feedstock", "Aseptic Salts"
+]
+OPCOES_AMOSTRAGEM = ["Swab", "Passive", "MAS-100", "Palating"]
+OPCOES_METHOD = ["Petrifilm AC", "Petrifilm EB", "TSAC", "YPD", "Petrifilm YM", "Cultura Direta", "PCR Rápido", "Sequenciamento NGS"]
+OPCOES_FORMA = ["Punctiform", "Circular", "Filamentous", "Irregular", "Rhizoid", "Fusiform"]
+OPCOES_MARGEM = ["Round", "Wavy", "Lobulated", "Filamentous", "Spiral"]
+OPCOES_RISCO = ["Seguro", "Nivel de Alerta", "Risco Crítico"]
+OPCOES_FREQUENCIA = ["Mensal", "Semanal", "Diário", "N/A"]
 
 # =========================================================================
 #  FLUXO CENTRALIZADO DE RENDERIZAÇÃO
 # =========================================================================
 
 if not st.session_state["logado"]:
-    # Se não estiver logado, exibe apenas a caixa de login
     col1, col2, col3 = st.columns([1, 1.8, 1])
     with col2:
         st.html("<div class='login-box'><div style='text-align: center; margin-bottom: 30px;'><span style='font-size: 42px;'>🔬</span><h1 style='color: #f8fafc; font-weight: 800; letter-spacing: -1px; margin-top: 10px; margin-bottom: 5px;'>NEXUS LIMS</h1><p style='color: #94a3b8; font-size: 14px;'>Acesso Restrito ao Biobanco de Segurança</p></div>")
@@ -105,7 +154,6 @@ if not st.session_state["logado"]:
                 res_user = cursor.fetchone()
                 if res_user:
                     st.session_state["logado"] = True
-                    # Salva apenas o nome como string sem caracteres de tupla
                     st.session_state["nome_usuario"] = str(res_user[0])
                     st.toast("Autenticação autorizada!", icon="🔑")
                     time.sleep(0.5)
@@ -116,68 +164,43 @@ if not st.session_state["logado"]:
         st.html("<div style='text-align: center; margin-top: 25px; border-top: 1px solid #334155; padding-top: 15px;'><p style='color: #64748b; font-size: 11px; margin: 0;'>Padrão de Fábrica: admin / lab133</p></div></div>")
 
 else:
-    # Se estiver logado, renderiza o painel operacional completo com abas estáveis
     st.sidebar.markdown("<h3 style='color: #60a5fa; margin-top: 10px;'>🔬 NEXUS LIMS</h3>", unsafe_allow_html=True)
     st.sidebar.caption(f"Operador: {st.session_state['nome_usuario']}")
     st.sidebar.markdown("---")
     
-    # Controle de navegação robusto via rádio lateral
-    modulo = st.sidebar.radio("📋 Módulos do Sistema", ["📦 Painel de Amostras", "➕ Cadastrar Nova Amostra"])
+    modulo = st.sidebar.radio(
+        "📋 Módulos do Sistema", 
+        ["📦 Painel de Amostras", "➕ Cadastrar Nova Amostra"],
+        index=0 if st.session_state["aba_atual"] == "📦 Painel de Amostras" else 1,
+        key="navegacao_radio"
+    )
+    st.session_state["aba_atual"] = modulo
     
     st.sidebar.markdown("---")
     if st.sidebar.button("🚪 Encerrar Sessão", use_container_width=True):
         st.session_state["logado"] = False
         st.session_state["nome_usuario"] = ""
+        st.session_state["aba_atual"] = "📦 Painel de Amostras"
         st.rerun()
 
-    # --- RENDERIZAÇÃO DO MÓDULO 1: PAINEL DE AMOSTRAS ---
-    if modulo == "📦 Painel de Amostras":
-        st.markdown("""
-            <div class='top-bar'>
-                <span style='font-size: 20px; font-weight: 700; color: #f8fafc;'>📋 Gerenciamento Geral de Amostras</span>
-                <span style='color: #10b981; font-size: 13px; font-weight: 600;'>● Rede Criptografada Ativa</span>
-            </div>
-        """, unsafe_allow_html=True)
+    # --- MÓDULO 1: PAINEL DE AMOSTRAS ---
+    if st.session_state["aba_atual"] == "📦 Painel de Amostras":
+        col_titulo, col_acao_direta = st.columns()
+        with col_titulo:
+            st.markdown("""
+                <div class='top-bar' style='margin-bottom: 0px;'>
+                    <span style='font-size: 20px; font-weight: 700; color: #f8fafc;'>📋 Gerenciamento Geral de Amostras</span>
+                    <span style='color: #10b981; font-size: 13px; font-weight: 600;'>● Malha de Rastreabilidade</span>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with col_acao_direta:
+            st.write("") 
+            if st.button("➕ Dar Entrada em Nova Amostra", use_container_width=True, type="primary"):
+                st.session_state["aba_atual"] = "➕ Cadastrar Nova Amostra"
+                st.rerun()
+                
+        st.write("<br>", unsafe_allow_html=True)
         
         df_dados = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
-        total_amostras = len(df_dados)
-        alertas_risco = len(df_dados[df_dados['nivel_risco'].str.contains("Alerta|Crítico|Alta", case=False, na=False)]) if total_amostras > 0 else 0
         
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown(f'<div class="metric-card"><div class="metric-title">Amostras Custodiadas</div><div class="metric-value">{total_amostras} <span style="font-size:14px; color:#64748b;">vials</span></div></div>', unsafe_allow_html=True)
-        with col2:
-            st.markdown(f'<div class="metric-card" style="border-left: 4px solid #ef4444;"><div class="metric-title" style="color: #ef4444;">Níveis de Risco / Alerta</div><div class="metric-value" style="color: #ef4444;">{alertas_risco} <span style="font-size:14px;">críticas</span></div></div>', unsafe_allow_html=True)
-        with col3:
-            st.markdown(f'<div class="metric-card" style="border-left: 4px solid #10b981;"><div class="metric-title">Analistas Ativos</div><div class="metric-value">{df_dados["analista"].nunique() if total_amostras > 0 else 0}</div></div>', unsafe_allow_html=True)
-        
-        st.write("")
-        st.subheader("DataGrid do Ecossistema Criogênico", divider="blue")
-        
-        if total_amostras > 0:
-            st.dataframe(df_dados, use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhuma amostra localizada na infraestrutura local do banco SQLite.")
-
-    # --- RENDERIZAÇÃO DO MÓDULO 2: CADASTRO DE AMOSTRA ---
-    elif modulo == "➕ Cadastrar Nova Amostra":
-        st.markdown("""
-            <div class='top-bar'>
-                <span style='font-size: 20px; font-weight: 700; color: #f8fafc;'>➕ Adicionar Novo Registro Microbiológico</span>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        with st.form("form_cadastro_amostra", border=True):
-            colA, colB = st.columns(2)
-            with colA:
-                codigo = st.text_input("Código de Barras ID (Único):", placeholder="Ex: BIO-999")
-                origem = st.text_input("Origem da Amostra:")
-                area = st.text_input("Área Laboratorial:")
-                ponto_coleta = st.text_input("Ponto de Coleta:")
-                metodo = st.selectbox("Método de Análise:", ["Cultura Direta", "PCR Rápido", "Sequenciamento NGS", "Isolamento Placa"])
-            with colB:
-                data_coleta = st.date_input("Data de Coleta:", datetime.now()).strftime("%Y-%m-%d")
-                analista = st.text_input("Analista Responsável:", value=st.session_state["nome_usuario"])
-                contagem_ufc = st.number_input("Contagem UFC:", min_value=0, step=1, value=0)
-                nivel_risco = st.selectbox("Nível de Risco Biológico:", ["Seguro", "Nivel de Alerta", "Risco Crítico"])
-                
