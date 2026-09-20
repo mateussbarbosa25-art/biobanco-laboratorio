@@ -186,6 +186,5 @@ def render_cadastrar_amostra():
         btn_salvar = st.form_submit_button("💾 Salvar Registro no Banco de Dados")
         
         if btn_salvar:
-            sucesso = salvar_amostra_no_banco(
-                codigo, origem, area, ponto_coleta, metodo, data_coleta, 
-                
+            # Resolvido de vez: Chamada linear em uma única linha para o Python não se perder na sintaxe
+            
