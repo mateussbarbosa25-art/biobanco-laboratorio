@@ -96,13 +96,13 @@ def db_start():
 
     cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE NOT NULL, senha_hash TEXT NOT NULL, nome_completo TEXT)")
     cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone() == 0:
+    if cursor.fetchone()[0] == 0:
         hash_adm = crypto_pass("lab133")
         cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", ("admin", hash_adm, "Administrador Geral"))
     
     # --- SEEDING AUTOMÁTICO DAS AMOSTRAS DA PLANILHA ---
     cursor.execute("SELECT COUNT(*) FROM monitoramento")
-    if cursor.fetchone() == 0:
+    if cursor.fetchone()[0] == 0:
         amostras_planilha = []
         # Amostras Mensais B4-001 a B4-034
         for i in range(1, 35):
@@ -173,7 +173,7 @@ if not st.session_state["logado"]:
                 res_user = cursor.fetchone()
                 if res_user:
                     st.session_state["logado"] = True
-                    st.session_state["nome_usuario"] = str(res_user[0]) if isinstance(res_user, tuple) else str(res_user)
+                    st.session_state["nome_usuario"] = str(res_user[0])
                     st.toast("Autenticação autorizada!", icon="🔑")
                     time.sleep(0.5)
                     st.rerun()
@@ -199,9 +199,10 @@ else:
     st.markdown(f"""
         <div class='top-bar'>
             <span style='color: #f8fafc; font-weight: 700; font-size: 1.2rem;'>{st.session_state["aba_atual"]}</span>
-            <span style='color: #94a3b8; font-size: 0.9rem;'>Nexus Edition V1.1</span>
+            <span style='color: #94a3b8; font-size: 0.9rem;'>Nexus Edition V1.2</span>
         </div>
     """, unsafe_allow_html=True)
     
     if st.sidebar.button("🚪 Encerrar Sessão", use_container_width=True):
+        st.session_state["logado"] = False
                     
