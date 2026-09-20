@@ -1,36 +1,49 @@
 import streamlit as st
 import pandas as pd
+import sqlite3
+import hashlib
 from datetime import datetime
 import time
 
-# --- CONFIGURAÇÃO DA PÁGINA (Interface Escura/Moderna por Padrão) ---
+# --- CONFIGURAÇÃO GERAL DA PÁGINA ---
 st.set_page_config(
-    page_title="LIMS Biobank Nexus",
-    page_icon="🧬",
+    page_title="LIMS Biobank Pro - Nexus Edition", 
+    page_icon="🔬", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
+# --- ESTILIZAÇÃO CSS AVANÇADA (ZENDO NEXUS THEME) ---
 st.markdown("""
-<style>
-    /* Estilização global para cartões modernos */
+    <style>
+    .main { background-color: #f8fafc; }
+    div[data-testid="stSidebar"] { background-color: #0f172a !important; }
+    div[data-testid="stSidebar"] .stMarkdown, div[data-testid="stSidebar"] label { color: #ffffff !important; }
+    
+    /* Top Bar */
+    .top-bar {
+        background-color: #ffffff; padding: 15px; border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 20px;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    
+    /* Cards de Métricas Modernos */
     .metric-card {
-        background-color: #1e293b;
+        background-color: #ffffff;
         border-radius: 12px;
         padding: 20px;
-        border: 1px solid #334155;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
     .metric-title {
-        color: #94a3b8;
-        font-size: 0.875rem;
-        font-weight: 600;
+        color: #64748b;
+        font-size: 0.75rem;
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
     .metric-value {
-        color: #f8fafc;
+        color: #1e293b;
         font-size: 1.875rem;
         font-weight: 700;
         margin-top: 4px;
@@ -42,155 +55,173 @@ st.markdown("""
         border-radius: 4px;
         color: #fca5a5;
     }
-</style>
+    </style>
 """, unsafe_allow_html=True)
 
-# --- ESTADO DA SESSÃO (PERSISTÊNCIA DE DADOS) ---
-if "biobanco" not in st.session_state:
-    st.session_state.biobanco = pd.DataFrame([
-        {"ID_Amostra": "BIO-001", "Tipo": "Soroteca", "Localização": "Freezer A [R2-C1]", "Status": "✔ Seguro", "Agente_Contaminante": "Nenhum", "Ultima_Modificacao": "2026-09-10 14:00"},
-        {"ID_Amostra": "BIO-002", "Tipo": "Tecido Tumor", "Localização": "Ultrafreezer B [R1-C4]", "Status": "☣ CONTAMINADA", "Agente_Contaminante": "Micoplasma", "Ultima_Modificacao": "2026-09-18 09:30"},
-        {"ID_Amostra": "BIO-003", "Tipo": "DNA Extraído", "Localização": "Nitrogênio Tanque 1", "Status": "✔ Seguro", "Agente_Contaminante": "Nenhum", "Ultima_Modificacao": "2026-09-19 11:15"},
-        {"ID_Amostra": "BIO-004", "Tipo": "Plasma", "Localização": "Freezer A [R3-C2]", "Status": "☣ CONTAMINADA", "Agente_Contaminante": "Influenza A", "Ultima_Modificacao": "2026-09-20 08:00"},
-    ])
+# --- FUNÇÕES CORE / BANCO DE DADOS ---
+def crypto_pass(texto_senha):
+    return hashlib.sha256(texto_senha.encode('utf-8')).hexdigest()
 
-if "audit_trail" not in st.session_state:
-    st.session_state.audit_trail = pd.DataFrame([
-        {"Data/Hora": "2026-09-18 09:30", "ID": "BIO-002", "Ação": "Flag de contaminação por Micoplasma adicionada.", "Operador": "Dr. Silva"},
-        {"Data/Hora": "2026-09-20 08:00", "ID": "BIO-004", "Ação": "Amostra movida e classificada com risco biológico.", "Operador": "Dra. Cristina"},
-    ])
+def db_start():
+    conn = sqlite3.connect('biobanco_laboratorio.db', check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS monitoramento (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            codigo TEXT UNIQUE NOT NULL, 
+            origem TEXT, 
+            area TEXT, 
+            ponto_coleta TEXT, 
+            metodo TEXT, 
+            data_coleta TEXT, 
+            analista TEXT, 
+            contagem_ufc INTEGER, 
+            nivel_risco TEXT, 
+            tipo_contaminante TEXT, 
+            identificacao_micro TEXT, 
+            status_acao TEXT, 
+            forma TEXT, 
+            margem TEXT, 
+            pigmento TEXT, 
+            coloracao_gram TEXT, 
+            catalase TEXT, 
+            oxidase TEXT, 
+            resultado_final TEXT
+        )
+    """)
+    
+    colunas_novas = {
+        "contagem_ufc": "INTEGER DEFAULT 0", "nivel_risco": "TEXT DEFAULT 'N/A'",
+        "tipo_contaminante": "TEXT DEFAULT 'N/A'", "identificacao_micro": "TEXT DEFAULT 'N/A'",
+        "status_acao": "TEXT DEFAULT 'N/A'", "forma": "TEXT DEFAULT 'N/A'",
+        "margem": "TEXT DEFAULT 'N/A'", "pigmento": "TEXT DEFAULT 'N/A'",
+        "coloracao_gram": "TEXT DEFAULT 'N/A'", "catalase": "TEXT DEFAULT 'N/A'",
+        "oxidase": "TEXT DEFAULT 'N/A'", "resultado_final": "TEXT DEFAULT 'N/A'"
+    }
+    for col, tipo in colunas_novas.items():
+        try:
+            cursor.execute(f"ALTER TABLE monitoramento ADD COLUMN {col} {tipo}")
+        except sqlite3.OperationalError:
+            pass
 
-# --- FUNÇÕES DE PÁGINAS (Arquitetura Streamlit Moderna) ---
-def render_dashboard():
-    st.title("📊 Painel Analítico de Biossegurança")
-    st.write("Monitoramento em tempo real do ecossistema criogênico.")
+    cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE NOT NULL, senha_hash TEXT NOT NULL, nome_completo TEXT)")
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    if cursor.fetchone() == 0:
+        hash_adm = crypto_pass("lab133")
+        cursor.execute("INSERT INTO usuarios (usuario, senha_hash, nome_completo) VALUES (?, ?, ?)", ("admin", hash_adm, "Administrador Geral"))
+    conn.commit()
+    return conn, cursor
+
+conn, cursor = db_start()
+
+# --- ESTADO DE SESSÃO ---
+if "logado" not in st.session_state:
+    st.session_state["logado"] = False
+if "nome_usuario" not in st.session_state:
+    st.session_state["nome_usuario"] = ""
+
+# =========================================================================
+#  TELA DE LOGIN (BLOQUEIO INICIAL)
+# =========================================================================
+if not st.session_state["logado"]:
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    col_login_1, col_login_2, col_login_3 = st.columns([1, 2, 1])
     
-    # KPIs customizados em Grid Moderno
-    total = len(st.session_state.biobanco)
-    contaminadas = len(st.session_state.biobanco[st.session_state.biobanco["Status"] == "☣ CONTAMINADA"])
-    seguras = total - contaminadas
+    with col_login_2:
+        st.markdown("""
+            <div style='text-align: center; margin-bottom: 25px;'>
+                <h1 style='color: #2563eb; font-weight: 800; letter-spacing: -1px;'>🔬 LIMS BIOBANK</h1>
+                <p style='color: #64748b; font-size: 14px;'>Sistema Avançado de Gestão Microbiológica</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        with st.form("login_form", border=True):
+            campo_usuario = st.text_input("Usuário:", placeholder="Ex: admin").strip()
+            campo_senha = st.text_input("Senha:", type="password", placeholder="••••••••")
+            botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
+            
+            if botao_entrar:
+                hash_digitado = crypto_pass(campo_senha)
+                cursor.execute("SELECT nome_completo FROM usuarios WHERE usuario = ? AND senha_hash = ?", (campo_usuario, hash_digitado))
+                res_user = cursor.fetchone()
+                if res_user:
+                    st.session_state["logado"] = True
+                    st.session_state["nome_usuario"] = res_user[0]
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+                    
+        st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 12px; margin-top: 10px;'>Padrão: admin / lab133</p>", unsafe_allow_html=True)
+    st.stop()
+
+# =========================================================================
+#  VISTAS DAS PÁGINAS (PÁGINAS DO SISTEMA LOGADO)
+# =========================================================================
+
+def render_painel_amostras():
+    st.markdown("""
+        <div class='top-bar'>
+            <span style='font-size: 20px; font-weight: 700; color: #1e293b;'>📋 Gerenciamento Geral de Amostras</span>
+            <span style='color: #10b981; font-size: 13px; font-weight: 600;'>● Cluster Online</span>
+        </div>
+    """, unsafe_allow_html=True)
     
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Volume Total</div><div class="metric-value">{total} <span style="font-size:14px; color:#10b981;">amostras</span></div></div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown(f'<div class="metric-card" style="border-color: #ef4444;"><div class="metric-title" style="color:#f87171;">Bio-Risco / Quarentena</div><div class="metric-value" style="color:#ef4444;">{contaminadas} <span style="font-size:14px;">críticas</span></div></div>', unsafe_allow_html=True)
-    with c3:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Integridade Limpa</div><div class="metric-value">{seguras} <span style="font-size:14px; color:#64748b;">vials</span></div></div>', unsafe_allow_html=True)
+    # Atualiza dados dinamicamente do SQLite
+    df_dados = pd.read_sql_query("SELECT * FROM monitoramento ORDER BY id DESC", conn)
     
-    st.subheader("Inventário Ativo de Amostras", divider="blue")
+    # Métricas Operacionais Avançadas
+    total_amostras = len(df_dados)
+    alertas_risco = len(df_dados[df_dados['nivel_risco'].str.contains("Alerta|Crítico|Alta", case=False, na=False)])
     
-    # Filtro dinâmico na tabela superior
-    status_filtro = st.segmented_control(
-        "Filtrar visualização por status:",
-        options=["Todas", "Seguro", "Contaminada"],
-        default="Todas"
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Amostras Custodiadas</div><div class="metric-value">{total_amostras} <span style="font-size:13px; color:#64748b; font-weight:normal;">vials</span></div></div>', unsafe_allow_html=True)
+    with col2:
+        st.markdown(f'<div class="metric-card" style="border-left-color: #ef4444;"><div class="metric-title" style="color: #ef4444;">Níveis de Risco / Alerta</div><div class="metric-value" style="color: #ef4444;">{alertas_risco} <span style="font-size:13px; font-weight:normal;">flags</span></div></div>', unsafe_allow_html=True)
+    with col3:
+        st.markdown(f'<div class="metric-card" style="border-left-color: #10b981;"><div class="metric-title">Analistas Ativos</div><div class="metric-value">{df_dados["analista"].nunique() if total_amostras > 0 else 0}</div></div>', unsafe_allow_html=True)
+    
+    st.write("")
+    st.subheader("DataGrid de Amostras Cadastradas", divider="blue")
+    
+    # Filtro Segmentado Moderno
+    filtro_risco = st.segmented_control(
+        "Filtrar Malha por Nível de Risco:",
+        options=["Todos", "Seguro", "Nivel de Alerta"],
+        default="Todos"
     )
     
-    df_exibicao = st.session_state.biobanco.copy()
-    if status_filtro == "Seguro":
-        df_exibicao = df_exibicao[df_exibicao["Status"].str.contains("Seguro")]
-    elif status_filtro == "Contaminada":
-        df_exibicao = df_exibicao[df_exibicao["Status"].str.contains("CONTAMINADA")]
-        
-    st.dataframe(
-        df_exibicao,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "ID_Amostra": st.column_config.TextColumn("Código de Barras ID", help="ID Único Identificador"),
-            "Status": st.column_config.TextColumn("Status de Risco"),
-            "Ultima_Modificacao": st.column_config.DatetimeColumn("Último Scan")
-        }
-    )
-
-def render_rastreamento():
-    st.title("🔍 Escaneamento & Cadeia de Custódia")
-    st.write("Simulação de entrada por sensor ótico / barcode laser.")
-    
-    id_busca = st.text_input("📡 Aproxime o leitor ou digite o ID (Ex: BIO-002, BIO-001):", placeholder="Aguardando tag RFID / Barcode...")
-    
-    if id_busca:
-        with st.spinner("Buscando na malha criogênica..."):
-            time.sleep(0.4) # Simulação de lag de leitura real
+    if total_amostras > 0:
+        df_filtrado = df_dados.copy()
+        if filtro_risco == "Seguro":
+            df_filtrado = df_filtrado[df_filtrado["nivel_risco"].str.contains("Seguro|N/A", case=False, na=False)]
+        elif filtro_risco == "Nivel de Alerta":
+            df_filtrado = df_filtrado[df_filtrado["nivel_risco"].str.contains("Alerta|Crítico|Alta", case=False, na=False)]
             
-        resultado = st.session_state.biobanco[st.session_state.biobanco["ID_Amostra"] == id_busca.strip()]
-        
-        if not resultado.empty:
-            amostra = resultado.iloc[0]
-            
-            if "CONTAMINADA" in amostra["Status"]:
-                st.markdown(f"""
-                <div class="status-alert">
-                    <strong>☣️ BLOQUEIO DE SEGURANÇA ATIVADO</strong><br>
-                    Esta amostra está positivada para <strong>{amostra['Agente_Contaminante']}</strong>. 
-                    Manipulação restrita a laboratórios NB3 (Nível de Biossegurança 3).
-                </div>
-                """, unsafe_allow_html=True)
-                st.write("")
-            else:
-                st.pills("Status de Liberação", ["Amostra Segura ✔"], selection_mode="single", disabled=True)
-            
-            # Painel com Detalhes Clean
-            col_left, col_right = st.columns(2)
-            with col_left:
-                st.info(f"**Tipo Biológico:** {amostra['Tipo']}")
-                st.success(f"📍 **Endereço Físico:** {amostra['Localização']}")
-            with col_right:
-                st.metric(label="Último Checkpoint", value=amostra['Ultima_Modificacao'])
-        else:
-            st.error("Código de amostra não identificado na rede atual de biobancos.")
+        st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhuma amostra localizada na infraestrutura local do banco SQLite.")
 
-def render_sinalizacao():
-    st.title("⚠️ Notificação de Risco Biológico")
-    st.write("Isole digitalmente amostras comprometidas e dispare travas de auditoria.")
+def render_cadastrar_amostra():
+    st.markdown("""
+        <div class='top-bar'>
+            <span style='font-size: 20px; font-weight: 700; color: #1e293b;'>➕ Adicionar Novo Registro Microbiológico</span>
+            <span style='color: #64748b; font-size: 13px;'>Módulo de Entrada Direta</span>
+        </div>
+    """, unsafe_allow_html=True)
     
-    with st.form("form_contaminacao", border=True):
-        id_selecionado = st.selectbox("Selecione o ID do recipiente afetado:", st.session_state.biobanco["ID_Amostra"].tolist())
-        novo_contaminante = st.text_input("Agente Patogênico Detectado:", placeholder="Ex: Mycoplasma hominis, HIV, Legionella")
-        operador = st.text_input("Identificação do Operador (Matrícula/Nome):")
+    with st.form("form_cadastro_amostra", border=True):
+        colA, colB = st.columns(2)
+        with colA:
+            codigo = st.text_input("Código de Barras ID (Único):", placeholder="Ex: BIO-999")
+            origem = st.text_input("Origem da Amostra:")
+            area = st.text_input("Área Laboratorial:")
+            ponto_coleta = st.text_input("Ponto de Coleta:")
+            metodo = st.selectbox("Método de Análise:", ["Cultura Direta", "PCR Rápido", "Sequenciamento NGS", "Isolamento Placa"])
         
-        enviar = st.form_submit_button("🚨 Gravar Flag de Contaminação e Notificar CIPA")
-        
-        if enviar:
-            if novo_contaminante and operador:
-                with st.status("Registrando nos nós de auditoria...", expanded=True) as status:
-                    time.sleep(0.6)
-                    
-                    # Atualizando o DataFrame
-                    idx = st.session_state.biobanco[st.session_state.biobanco["ID_Amostra"] == id_selecionado].index
-                    st.session_state.biobanco.at[idx, "Status"] = "☣ CONTAMINADA"
-                    st.session_state.biobanco.at[idx, "Agente_Contaminante"] = novo_contaminante
-                    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    st.session_state.biobanco.at[idx, "Ultima_Modificacao"] = agora
-                    
-                    # Atualizando Trilha de Auditoria
-                    novo_log = pd.DataFrame([{"Data/Hora": agora, "ID": id_selecionado, "Ação": f"Contaminação por {novo_contaminante} reportada.", "Operador": operador}])
-                    st.session_state.audit_trail = pd.concat([novo_log, st.session_state.audit_trail], ignore_index=True)
-                    
-                    status.update(label="Segurança Atualizada com Sucesso!", state="complete", expanded=False)
-                st.toast(f"Amostra {id_selecionado} movida para isolamento digital.", icon="☣️")
-            else:
-                st.error("Todos os campos do formulário de risco são obrigatórios.")
-
-# --- COMPONENTE DE NAVEGAÇÃO MODERNO (ST.NAVIGATION - LANÇAMENTO RECENTE) ---
-paginas = {
-    "NEXUS LIMS": [
-        st.Page(render_dashboard, title="Dashboard Geral", icon="📊"),
-        st.Page(render_rastreamento, title="Rastrear Código", icon="🔍"),
-        st.Page(render_sinalizacao, title="Sinalizar Alerta", icon="⚠️"),
-    ]
-}
-
-# Configuração da barra lateral nativa moderna
-st.sidebar.markdown("<h3 style='color: #60a5fa;'>🧬 NEXUS BIOBANK</h3>", unsafe_allow_html=True)
-st.sidebar.caption("Controle de Rastreabilidade v2.4")
-
-# Executa o roteador de páginas
-pg = st.navigation(paginas, position="sidebar")
-pg.run()
-
-# --- RODAPÉ DE AUDITORIA FIXO (Abaixo de todas as páginas) ---
-st.markdown("---")
-st.markdown("#### 📜 Trilha Inalterável de Auditoria (Audit Trail — Compliance ISO 20387)")
-st.dataframe(st.session_state.audit_trail, use_container_width=True, hide_index=True)
+        with colB:
+            data_coleta = st.date_input("Data de Coleta:", datetime.now()).strftime("%Y-%m-%d")
+            analista = st.text_input("Analista Responsável:", value=st.session_state["nome_usuario"])
+            contagem_ufc = st.number_input("Contagem UFC:", min_value=0, step=1, value=0)
+            nivel_risco = st.selectbox("Nível de Risco Biológico:", ["Seguro", "Nivel de Alerta", "Risco Crítico"])
+            
